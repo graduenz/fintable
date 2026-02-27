@@ -1,6 +1,6 @@
-namespace Fintable.Data;
+namespace Fintable.Persistence;
 
-public class Category
+public class Account
 {
     public required string Id { get; set; }
     public required string Name { get; set; }

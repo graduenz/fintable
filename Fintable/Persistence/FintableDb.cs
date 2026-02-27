@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Text.Json;
 
-namespace Fintable.Data;
+namespace Fintable.Persistence;
 
 public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(options)
 {
@@ -15,13 +17,17 @@ public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(option
     {
         base.OnModelCreating(modelBuilder);
 
+        var jsonConverter = new ValueConverter<Dictionary<string, string>?, string>(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+            v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, (JsonSerializerOptions?)null) ?? new()
+        );
+
         modelBuilder.Entity<Provider>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired();
-            entity.Property(e => e.Metadata)
-                .HasColumnType("jsonb");
+            entity.Property(e => e.Metadata).HasConversion(jsonConverter).HasColumnType("text");
         });
 
         modelBuilder.Entity<Account>(entity =>

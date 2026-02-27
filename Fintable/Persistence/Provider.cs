@@ -1,4 +1,4 @@
-namespace Fintable.Data;
+namespace Fintable.Persistence;
 
 public class Provider
 {

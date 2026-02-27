@@ -1,6 +1,6 @@
 using Fintable.Models;
 
-namespace Fintable.Data;
+namespace Fintable.Persistence;
 
 public class Transaction
 {
