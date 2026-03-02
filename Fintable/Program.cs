@@ -1,8 +1,27 @@
+using Fintable.DataSource;
+using Fintable.Features.Reports;
+using Fintable.Features.Sync;
+using Fintable.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Services
+    // Application services
+    .AddScoped<IDataSourceFactory, DataSourceFactory>()
+    // Reports module
+    .AddScoped<IReportsService, ReportsService>()
+    // Sync module
+    .AddScoped<ISyncOrchestrator, SyncOrchestrator>();
+
+builder.Services.AddDbContext<FintableDb>(options => options.UseSqlite(builder.Configuration.GetConnectionString("Fintable")));
+
+builder.Services.AddRouting(options =>
+{
+    options.LowercaseUrls = true;
+    options.LowercaseQueryStrings = true;
+});
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

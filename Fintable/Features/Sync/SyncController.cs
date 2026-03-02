@@ -9,7 +9,8 @@ namespace Fintable.Features.Sync
         [HttpPost]
         public async Task<IActionResult> Sync()
         {
-            throw new NotImplementedException();
+            await orchestrator.ExecuteAsync();
+            return Ok();
         }
     }
 }
