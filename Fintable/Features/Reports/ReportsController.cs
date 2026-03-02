@@ -5,12 +5,12 @@ namespace Fintable.Features.Reports
 {
     [ApiController]
     [Route("[controller]")]
-    public class ReportsController(FintableDb db) : ControllerBase
+    public class ReportsController(IReportsService service) : ControllerBase
     {
         [HttpGet("stats")]
         public async Task<IActionResult> Stats()
         {
-            throw new NotImplementedException();
+            return Ok(await service.GetStatsReportAsync());
         }
 
         [HttpGet("fintable")]
