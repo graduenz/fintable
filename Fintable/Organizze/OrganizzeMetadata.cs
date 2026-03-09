@@ -1,10 +1,10 @@
 using System.Text.Json;
 
-namespace Fintable.Features.Providers.Organizze;
+namespace Fintable.Organizze;
 
 public class OrganizzeMetadata
 {
-    public required string Email { get; set;}
+    public required string Email { get; set; }
     public required string ApiKey { get; set; }
 
     public static OrganizzeMetadata FromJson(string json) =>
@@ -13,4 +13,3 @@ public class OrganizzeMetadata
 
     public NOrganizze.Credentials ToCredentials() => new(Email, ApiKey);
 }
-

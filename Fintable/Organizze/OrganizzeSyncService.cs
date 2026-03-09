@@ -1,7 +1,8 @@
+using Fintable.Features.Sync;
 using Fintable.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace Fintable.Features.Sync;
+namespace Fintable.Organizze;
 
 public class OrganizzeSyncService
 {
@@ -285,4 +286,3 @@ public class OrganizzeSyncService
         await _db.SaveChangesAsync(cancellationToken);
     }
 }
-

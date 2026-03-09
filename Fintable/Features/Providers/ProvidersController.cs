@@ -48,6 +48,7 @@ namespace Fintable.Features.Providers
             if (provider == null)
                 return NotFound();
 
+            provider.Type = providerDto.Type;
             provider.Name = providerDto.Name;
             provider.Metadata = providerDto.Metadata;
             await db.SaveChangesAsync();
@@ -67,6 +68,52 @@ namespace Fintable.Features.Providers
             await db.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        [HttpGet("{name}/validate")]
+        public async Task<IActionResult> Validate([FromRoute] string name)
+        {
+            var providers = await db.Providers.Where(p => p.Name == name).ToListAsync();
+            if (providers.Count == 0)
+                return NotFound();
+
+            var first = providers[0];
+            var requiredKeys = ProviderMetadataSchemaRegistry.GetRequiredKeys(first.Type) ?? [];
+
+            var providersDict = new Dictionary<string, ProviderValidateEntryDto>();
+            var allFullySetUp = true;
+
+            foreach (var p in providers)
+            {
+                var keysForType = ProviderMetadataSchemaRegistry.GetRequiredKeys(p.Type) ?? [];
+                var missing = keysForType
+                    .Where(k =>
+                    {
+                        var value = p.Metadata?.FirstOrDefault(m => string.Equals(m.Key, k, StringComparison.OrdinalIgnoreCase)).Value;
+                        return string.IsNullOrWhiteSpace(value);
+                    })
+                    .ToList();
+                var isFullySetUp = missing.Count == 0;
+                if (!isFullySetUp)
+                    allFullySetUp = false;
+
+                providersDict[p.Id] = new ProviderValidateEntryDto
+                {
+                    Id = p.Id,
+                    Type = p.Type,
+                    Name = p.Name,
+                    IsFullySetUp = isFullySetUp,
+                    MissingKeys = missing,
+                };
+            }
+
+            var result = new ProviderValidateResultDto
+            {
+                RequiredKeys = requiredKeys,
+                IsFullySetUp = allFullySetUp,
+                Providers = providersDict,
+            };
+            return Ok(result);
         }
     }
 }

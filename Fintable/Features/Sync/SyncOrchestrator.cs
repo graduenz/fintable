@@ -1,5 +1,6 @@
+using Fintable;
+using Fintable.Organizze;
 using Fintable.Persistence;
-using Fintable.Features.Providers.Organizze;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -34,7 +35,7 @@ namespace Fintable.Features.Sync
         private async Task SyncProviderAsync(Provider provider, CancellationToken cancellationToken)
         {
             // For now we only support Organizze; this can expand as new providers are added.
-            if (!string.Equals(provider.Name.Trim(), "organizze", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(provider.Type.Trim(), ProviderType.Organizze, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

@@ -26,6 +26,7 @@ public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(option
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Property(e => e.Type).IsRequired();
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.Metadata).HasConversion(jsonConverter).HasColumnType("text");
         });
