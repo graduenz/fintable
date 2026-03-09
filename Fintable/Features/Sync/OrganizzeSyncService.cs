@@ -1,5 +1,4 @@
 using Fintable.Persistence;
-using Fintable.Providers.Organizze;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fintable.Features.Sync;
@@ -7,9 +6,9 @@ namespace Fintable.Features.Sync;
 public class OrganizzeSyncService
 {
     private readonly FintableDb _db;
-    private readonly OrganizzeFetchClient _client;
+    private readonly NOrganizze.NOrganizzeClient _client;
 
-    public OrganizzeSyncService(FintableDb db, OrganizzeFetchClient client)
+    public OrganizzeSyncService(FintableDb db, NOrganizze.NOrganizzeClient client)
     {
         _db = db;
         _client = client;
@@ -27,7 +26,7 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncAccountsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var dtos = await _client.GetAccountsAsync();
+        var remoteAccounts = await _client.Accounts.ListAsync();
 
         var existing = await _db.Accounts
             .Where(a => a.ProviderId == provider.Id)
@@ -35,11 +34,14 @@ public class OrganizzeSyncService
 
         var byExternalId = existing.ToDictionary(a => a.ExternalId, a => a);
 
-        foreach (var dto in dtos)
+        foreach (var remote in remoteAccounts)
         {
-            if (byExternalId.TryGetValue(dto.ExternalId, out var account))
+            var externalId = remote.Id.ToString();
+            var name = remote.Name;
+
+            if (byExternalId.TryGetValue(externalId, out var account))
             {
-                account.Name = dto.Name;
+                account.Name = name;
                 continue;
             }
 
@@ -47,12 +49,12 @@ public class OrganizzeSyncService
             {
                 Id = Id.New(),
                 ProviderId = provider.Id,
-                ExternalId = dto.ExternalId,
-                Name = dto.Name,
+                ExternalId = externalId,
+                Name = name,
             };
 
             _db.Accounts.Add(newAccount);
-            byExternalId[dto.ExternalId] = newAccount;
+            byExternalId[externalId] = newAccount;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -62,7 +64,7 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncCategoriesAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var dtos = await _client.GetCategoriesAsync();
+        var remoteCategories = await _client.Categories.ListAsync();
 
         var existing = await _db.Categories
             .Where(c => c.ProviderId == provider.Id)
@@ -70,11 +72,14 @@ public class OrganizzeSyncService
 
         var byExternalId = existing.ToDictionary(c => c.ExternalId, c => c);
 
-        foreach (var dto in dtos)
+        foreach (var remote in remoteCategories)
         {
-            if (byExternalId.TryGetValue(dto.ExternalId, out var category))
+            var externalId = remote.Id.ToString();
+            var name = remote.Name;
+
+            if (byExternalId.TryGetValue(externalId, out var category))
             {
-                category.Name = dto.Name;
+                category.Name = name;
                 continue;
             }
 
@@ -82,12 +87,12 @@ public class OrganizzeSyncService
             {
                 Id = Id.New(),
                 ProviderId = provider.Id,
-                ExternalId = dto.ExternalId,
-                Name = dto.Name,
+                ExternalId = externalId,
+                Name = name,
             };
 
             _db.Categories.Add(newCategory);
-            byExternalId[dto.ExternalId] = newCategory;
+            byExternalId[externalId] = newCategory;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -97,7 +102,7 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncCreditCardsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var dtos = await _client.GetCreditCardsAsync();
+        var remoteCards = await _client.CreditCards.ListAsync();
 
         var existing = await _db.CreditCards
             .Where(c => c.ProviderId == provider.Id)
@@ -105,11 +110,14 @@ public class OrganizzeSyncService
 
         var byExternalId = existing.ToDictionary(c => c.ExternalId, c => c);
 
-        foreach (var dto in dtos)
+        foreach (var remote in remoteCards)
         {
-            if (byExternalId.TryGetValue(dto.ExternalId, out var card))
+            var externalId = remote.Id.ToString();
+            var name = remote.Name;
+
+            if (byExternalId.TryGetValue(externalId, out var card))
             {
-                card.Name = dto.Name;
+                card.Name = name;
                 continue;
             }
 
@@ -117,12 +125,12 @@ public class OrganizzeSyncService
             {
                 Id = Id.New(),
                 ProviderId = provider.Id,
-                ExternalId = dto.ExternalId,
-                Name = dto.Name,
+                ExternalId = externalId,
+                Name = name,
             };
 
             _db.CreditCards.Add(newCard);
-            byExternalId[dto.ExternalId] = newCard;
+            byExternalId[externalId] = newCard;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -135,48 +143,51 @@ public class OrganizzeSyncService
         Dictionary<string, string> creditCardsMap,
         CancellationToken cancellationToken)
     {
-        var allInvoices = new List<OrganizzeInvoiceDto>();
-
-        // Fetch invoices per credit card to mirror existing API.
-        foreach (var creditCardExternalId in creditCardsMap.Keys)
-        {
-            var invoices = await _client.GetInvoicesAsync(creditCardExternalId);
-            allInvoices.AddRange(invoices);
-        }
-
         var existing = await _db.Invoices
             .Where(i => creditCardsMap.Values.Contains(i.CreditCardId))
             .ToListAsync(cancellationToken);
 
         var byExternalId = existing.ToDictionary(i => i.ExternalId, i => i);
 
-        foreach (var dto in allInvoices)
+        // Fetch invoices per credit card to mirror existing API.
+        foreach (var creditCardExternalId in creditCardsMap.Keys)
         {
-            if (!creditCardsMap.TryGetValue(dto.CreditCardExternalId, out var localCreditCardId))
+            if (!creditCardsMap.TryGetValue(creditCardExternalId, out var localCreditCardId))
             {
                 continue;
             }
 
-            if (byExternalId.TryGetValue(dto.ExternalId, out var invoice))
+            var creditCardRemoteId = long.Parse(creditCardExternalId);
+            var remoteInvoices = await _client.Invoices.ListAsync(creditCardRemoteId);
+
+            foreach (var remote in remoteInvoices)
             {
-                invoice.Date = dto.Date;
-                invoice.Value = dto.AmountCents;
-                invoice.Paid = dto.Paid;
-                continue;
+                var externalId = remote.Id.ToString();
+                var date = remote.Date;
+                var amountCents = remote.AmountCents;
+                var paid = remote.BalanceCents == 0;
+
+                if (byExternalId.TryGetValue(externalId, out var invoice))
+                {
+                    invoice.Date = date;
+                    invoice.Value = amountCents;
+                    invoice.Paid = paid;
+                    continue;
+                }
+
+                var newInvoice = new Invoice
+                {
+                    Id = Id.New(),
+                    CreditCardId = localCreditCardId,
+                    ExternalId = externalId,
+                    Date = date,
+                    Value = amountCents,
+                    Paid = paid,
+                };
+
+                _db.Invoices.Add(newInvoice);
+                byExternalId[externalId] = newInvoice;
             }
-
-            var newInvoice = new Invoice
-            {
-                Id = Id.New(),
-                CreditCardId = localCreditCardId,
-                ExternalId = dto.ExternalId,
-                Date = dto.Date,
-                Value = dto.AmountCents,
-                Paid = dto.Paid,
-            };
-
-            _db.Invoices.Add(newInvoice);
-            byExternalId[dto.ExternalId] = newInvoice;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -190,7 +201,7 @@ public class OrganizzeSyncService
         Dictionary<string, string> categoriesMap,
         CancellationToken cancellationToken)
     {
-        var dtos = await _client.GetTransactionsAsync();
+        var remoteTransactions = await _client.Transactions.ListAsync();
 
         var existing = await _db.Transactions
             .Where(t => t.Account.Accounts.Any(a => a.ProviderId == provider.Id))
@@ -198,25 +209,29 @@ public class OrganizzeSyncService
 
         var byExternalId = existing.ToDictionary(t => t.ExternalId, t => t);
 
-        foreach (var dto in dtos)
+        foreach (var remote in remoteTransactions)
         {
-            if (!accountsMap.TryGetValue(dto.AccountExternalId, out var localAccountId))
+            var externalId = remote.Id.ToString();
+            var accountExternalId = remote.AccountId.ToString();
+
+            if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
             {
                 // If we do not know the account, skip this transaction for now.
                 continue;
             }
 
-            categoriesMap.TryGetValue(dto.CategoryExternalId ?? string.Empty, out var localCategoryId);
+            // TODO: Map category when Organizze exposes it consistently.
+            categoriesMap.TryGetValue(string.Empty, out var localCategoryId);
 
-            if (byExternalId.TryGetValue(dto.ExternalId, out var transaction))
+            if (byExternalId.TryGetValue(externalId, out var transaction))
             {
-                transaction.Description = dto.Description;
-                transaction.Date = dto.Date;
-                transaction.Paid = dto.Paid;
-                transaction.Value = dto.AmountCents;
-                transaction.TotalInstallments = dto.TotalInstallments;
-                transaction.Installment = dto.Installment;
-                transaction.Recurring = dto.Recurring;
+                transaction.Description = remote.Description;
+                transaction.Date = remote.Date;
+                transaction.Paid = remote.Paid;
+                transaction.Value = remote.AmountCents;
+                transaction.TotalInstallments = remote.TotalInstallments;
+                transaction.Installment = remote.Installment;
+                transaction.Recurring = remote.Recurring;
                 transaction.AccountId = localAccountId;
                 transaction.AccountType = Fintable.Models.TransactionAccountType.Account;
                 if (localCategoryId is not null)
@@ -230,21 +245,21 @@ public class OrganizzeSyncService
             var newTransaction = new Transaction
             {
                 Id = Id.New(),
-                ExternalId = dto.ExternalId,
-                Description = dto.Description,
-                Date = dto.Date,
-                Paid = dto.Paid,
-                Value = dto.AmountCents,
-                TotalInstallments = dto.TotalInstallments,
-                Installment = dto.Installment,
-                Recurring = dto.Recurring,
+                ExternalId = externalId,
+                Description = remote.Description,
+                Date = remote.Date,
+                Paid = remote.Paid,
+                Value = remote.AmountCents,
+                TotalInstallments = remote.TotalInstallments,
+                Installment = remote.Installment,
+                Recurring = remote.Recurring,
                 AccountId = localAccountId,
                 AccountType = Fintable.Models.TransactionAccountType.Account,
                 CategoryId = localCategoryId ?? string.Empty,
             };
 
             _db.Transactions.Add(newTransaction);
-            byExternalId[dto.ExternalId] = newTransaction;
+            byExternalId[externalId] = newTransaction;
         }
 
         await _db.SaveChangesAsync(cancellationToken);

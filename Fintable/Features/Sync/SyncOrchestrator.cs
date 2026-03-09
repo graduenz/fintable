@@ -39,8 +39,8 @@ namespace Fintable.Features.Sync
             var metadataJson = JsonSerializer.Serialize(provider.Metadata ?? new Dictionary<string, string>());
             var metadata = OrganizzeMetadata.FromJson(metadataJson);
 
-            var fetchClient = new OrganizzeFetchClient(metadata);
-            var syncService = new OrganizzeSyncService(db, fetchClient);
+            var client = new NOrganizze.NOrganizzeClient(metadata.ToCredentials);
+            var syncService = new OrganizzeSyncService(db, client);
 
             await syncService.SyncAsync(provider, cancellationToken);
         }
