@@ -7,11 +7,13 @@ public class OrganizzeSyncService
 {
     private readonly FintableDb _db;
     private readonly NOrganizze.NOrganizzeClient _client;
+    private readonly SyncWindowOptions _windowOptions;
 
-    public OrganizzeSyncService(FintableDb db, NOrganizze.NOrganizzeClient client)
+    public OrganizzeSyncService(FintableDb db, NOrganizze.NOrganizzeClient client, SyncWindowOptions windowOptions)
     {
         _db = db;
         _client = client;
+        _windowOptions = windowOptions;
     }
 
     public async Task SyncAsync(Provider provider, CancellationToken cancellationToken = default)
@@ -143,13 +145,15 @@ public class OrganizzeSyncService
         Dictionary<string, string> creditCardsMap,
         CancellationToken cancellationToken)
     {
+        var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
+
         var existing = await _db.Invoices
             .Where(i => creditCardsMap.Values.Contains(i.CreditCardId))
             .ToListAsync(cancellationToken);
 
         var byExternalId = existing.ToDictionary(i => i.ExternalId, i => i);
 
-        // Fetch invoices per credit card to mirror existing API.
+        // Fetch invoices per credit card and per year to control request sizes.
         foreach (var creditCardExternalId in creditCardsMap.Keys)
         {
             if (!creditCardsMap.TryGetValue(creditCardExternalId, out var localCreditCardId))
@@ -158,35 +162,42 @@ public class OrganizzeSyncService
             }
 
             var creditCardRemoteId = long.Parse(creditCardExternalId);
-            var remoteInvoices = await _client.Invoices.ListAsync(creditCardRemoteId);
-
-            foreach (var remote in remoteInvoices)
+            foreach (var (start, end) in yearRanges)
             {
-                var externalId = remote.Id.ToString();
-                var date = remote.Date;
-                var amountCents = remote.AmountCents;
-                var paid = remote.BalanceCents == 0;
-
-                if (byExternalId.TryGetValue(externalId, out var invoice))
+                var remoteInvoices = await _client.Invoices.ListAsync(creditCardRemoteId, new NOrganizze.Invoices.InvoiceListOptions
                 {
-                    invoice.Date = date;
-                    invoice.Value = amountCents;
-                    invoice.Paid = paid;
-                    continue;
+                    StartDate = start,
+                    EndDate = end,
+                });
+
+                foreach (var remote in remoteInvoices)
+                {
+                    var externalId = remote.Id.ToString();
+                    var date = remote.Date;
+                    var amountCents = remote.AmountCents;
+                    var paid = remote.BalanceCents == 0;
+
+                    if (byExternalId.TryGetValue(externalId, out var invoice))
+                    {
+                        invoice.Date = date;
+                        invoice.Value = amountCents;
+                        invoice.Paid = paid;
+                        continue;
+                    }
+
+                    var newInvoice = new Invoice
+                    {
+                        Id = Id.New(),
+                        CreditCardId = localCreditCardId,
+                        ExternalId = externalId,
+                        Date = date,
+                        Value = amountCents,
+                        Paid = paid,
+                    };
+
+                    _db.Invoices.Add(newInvoice);
+                    byExternalId[externalId] = newInvoice;
                 }
-
-                var newInvoice = new Invoice
-                {
-                    Id = Id.New(),
-                    CreditCardId = localCreditCardId,
-                    ExternalId = externalId,
-                    Date = date,
-                    Value = amountCents,
-                    Paid = paid,
-                };
-
-                _db.Invoices.Add(newInvoice);
-                byExternalId[externalId] = newInvoice;
             }
         }
 
@@ -201,65 +212,74 @@ public class OrganizzeSyncService
         Dictionary<string, string> categoriesMap,
         CancellationToken cancellationToken)
     {
-        var remoteTransactions = await _client.Transactions.ListAsync();
+        var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
 
         var existing = await _db.Transactions
-            .Where(t => t.Account.Accounts.Any(a => a.ProviderId == provider.Id))
+            .Where(t => (t.Account != null && t.Account.ProviderId == provider.Id) || (t.CreditCard != null && t.CreditCard.ProviderId == provider.Id))
             .ToListAsync(cancellationToken);
 
         var byExternalId = existing.ToDictionary(t => t.ExternalId, t => t);
 
-        foreach (var remote in remoteTransactions)
+        foreach (var (start, end) in yearRanges)
         {
-            var externalId = remote.Id.ToString();
-            var accountExternalId = remote.AccountId.ToString();
-
-            if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
+            var remoteTransactions = await _client.Transactions.ListAsync(new NOrganizze.Transactions.TransactionListOptions
             {
-                // If we do not know the account, skip this transaction for now.
-                continue;
-            }
+                StartDate = start,
+                EndDate = end,
+            });
 
-            // TODO: Map category when Organizze exposes it consistently.
-            categoriesMap.TryGetValue(string.Empty, out var localCategoryId);
-
-            if (byExternalId.TryGetValue(externalId, out var transaction))
+            foreach (var remote in remoteTransactions)
             {
-                transaction.Description = remote.Description;
-                transaction.Date = remote.Date;
-                transaction.Paid = remote.Paid;
-                transaction.Value = remote.AmountCents;
-                transaction.TotalInstallments = remote.TotalInstallments;
-                transaction.Installment = remote.Installment;
-                transaction.Recurring = remote.Recurring;
-                transaction.AccountId = localAccountId;
-                transaction.AccountType = Fintable.Models.TransactionAccountType.Account;
-                if (localCategoryId is not null)
+                var externalId = remote.Id.ToString();
+                var accountExternalId = remote.AccountId.ToString();
+
+                if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
                 {
-                    transaction.CategoryId = localCategoryId;
+                    // If we do not know the account, skip this transaction for now.
+                    continue;
                 }
 
-                continue;
+                // TODO: Map category when Organizze exposes it consistently.
+                categoriesMap.TryGetValue(string.Empty, out var localCategoryId);
+
+                if (byExternalId.TryGetValue(externalId, out var transaction))
+                {
+                    transaction.Description = remote.Description;
+                    transaction.Date = remote.Date;
+                    transaction.Paid = remote.Paid;
+                    transaction.Value = remote.AmountCents;
+                    transaction.TotalInstallments = remote.TotalInstallments;
+                    transaction.Installment = remote.Installment;
+                    transaction.Recurring = remote.Recurring;
+                    transaction.AccountId = localAccountId;
+                    transaction.AccountType = Fintable.Models.TransactionAccountType.Account;
+                    if (localCategoryId is not null)
+                    {
+                        transaction.CategoryId = localCategoryId;
+                    }
+
+                    continue;
+                }
+
+                var newTransaction = new Transaction
+                {
+                    Id = Id.New(),
+                    ExternalId = externalId,
+                    Description = remote.Description,
+                    Date = remote.Date,
+                    Paid = remote.Paid,
+                    Value = remote.AmountCents,
+                    TotalInstallments = remote.TotalInstallments,
+                    Installment = remote.Installment,
+                    Recurring = remote.Recurring,
+                    AccountId = localAccountId,
+                    AccountType = Fintable.Models.TransactionAccountType.Account,
+                    CategoryId = localCategoryId ?? string.Empty,
+                };
+
+                _db.Transactions.Add(newTransaction);
+                byExternalId[externalId] = newTransaction;
             }
-
-            var newTransaction = new Transaction
-            {
-                Id = Id.New(),
-                ExternalId = externalId,
-                Description = remote.Description,
-                Date = remote.Date,
-                Paid = remote.Paid,
-                Value = remote.AmountCents,
-                TotalInstallments = remote.TotalInstallments,
-                Installment = remote.Installment,
-                Recurring = remote.Recurring,
-                AccountId = localAccountId,
-                AccountType = Fintable.Models.TransactionAccountType.Account,
-                CategoryId = localCategoryId ?? string.Empty,
-            };
-
-            _db.Transactions.Add(newTransaction);
-            byExternalId[externalId] = newTransaction;
         }
 
         await _db.SaveChangesAsync(cancellationToken);

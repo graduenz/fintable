@@ -12,6 +12,8 @@ builder.Services
     // Sync module
     .AddScoped<ISyncOrchestrator, SyncOrchestrator>();
 
+builder.Services.Configure<SyncWindowOptions>(builder.Configuration.GetSection("SyncWindow"));
+
 builder.Services.AddDbContext<FintableDb>(options => options.UseSqlite(builder.Configuration.GetConnectionString("Fintable")));
 
 builder.Services.AddRouting(options =>

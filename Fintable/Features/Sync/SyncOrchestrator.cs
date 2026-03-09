@@ -1,12 +1,15 @@
 using Fintable.Persistence;
 using Fintable.Features.Providers.Organizze;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace Fintable.Features.Sync
 {
-    public class SyncOrchestrator(FintableDb db) : ISyncOrchestrator
+    public class SyncOrchestrator(FintableDb db, IOptions<SyncWindowOptions> syncWindowOptions) : ISyncOrchestrator
     {
+        private readonly SyncWindowOptions _syncWindowOptions = syncWindowOptions.Value;
+
         public async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
             var providers = await db.Providers.ToListAsync(cancellationToken);
@@ -40,7 +43,7 @@ namespace Fintable.Features.Sync
             var metadata = OrganizzeMetadata.FromJson(metadataJson);
 
             var client = new NOrganizze.NOrganizzeClient(metadata.ToCredentials);
-            var syncService = new OrganizzeSyncService(db, client);
+            var syncService = new OrganizzeSyncService(db, client, _syncWindowOptions);
 
             await syncService.SyncAsync(provider, cancellationToken);
         }
