@@ -1,4 +1,3 @@
-using Fintable.DataSource;
 using Fintable.Features.Reports;
 using Fintable.Features.Sync;
 using Fintable.Persistence;
@@ -9,8 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     // Application services
-    .AddScoped<IDataSourceFactory, DataSourceFactory>()
-    // Reports module
     .AddScoped<IReportsService, ReportsService>()
     // Sync module
     .AddScoped<ISyncOrchestrator, SyncOrchestrator>();
