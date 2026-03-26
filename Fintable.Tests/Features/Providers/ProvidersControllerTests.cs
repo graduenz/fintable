@@ -107,6 +107,14 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.NotEqual(string.Empty, created.Id);
         Assert.Equal(dto.Name, created.Name);
         Assert.Equal(ProviderType.Organizze, created.Type);
+
+        var getResponse = await Client.GetAsync($"/providers/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        Assert.NotNull(fetched);
+        Assert.Equal(created.Id, fetched.Id);
+        Assert.Equal(dto.Name, fetched.Name);
+        Assert.Equal(ProviderType.Organizze, fetched.Type);
     }
 
     [Fact]
@@ -152,6 +160,14 @@ public class ProvidersControllerTests : BaseControllerTests
         var updated = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
         Assert.NotNull(updated);
         Assert.Equal(updatedName, updated.Name);
+
+        var getResponse = await Client.GetAsync($"/providers/{provider.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        Assert.NotNull(fetched);
+        Assert.Equal(provider.Id, fetched.Id);
+        Assert.Equal(updatedName, fetched.Name);
+        Assert.Equal(ProviderType.Organizze, fetched.Type);
     }
 
     [Fact]
@@ -212,6 +228,9 @@ public class ProvidersControllerTests : BaseControllerTests
         Db.ChangeTracker.Clear();
         var deleted = await Db.Providers.FindAsync(provider.Id);
         Assert.Null(deleted);
+
+        var getResponse = await Client.GetAsync($"/providers/{provider.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Fact]
