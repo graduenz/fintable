@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Fintable.Persistence;
 using Mapster;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Fintable.Features.Providers
 {
     [ApiController]
-    [Route("[controller]")]
+    [ApiVersion("1.0")]
+    [Route("v{version:apiVersion}/[controller]")]
     public class ProvidersController(FintableDb db) : ControllerBase
     {
         [HttpGet("{id}")]

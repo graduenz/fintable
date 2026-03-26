@@ -1,10 +1,12 @@
+using Asp.Versioning;
 using Fintable.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fintable.Features.Reports
 {
     [ApiController]
-    [Route("[controller]")]
+    [ApiVersion("1.0")]
+    [Route("v{version:apiVersion}/[controller]")]
     public class ReportsController(IReportsService service) : ControllerBase
     {
         [HttpGet("stats")]

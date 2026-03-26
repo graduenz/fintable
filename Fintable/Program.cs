@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Fintable.Features.Reports;
 using Fintable.Features.Sync;
 using Fintable.Persistence;
@@ -23,6 +24,14 @@ builder.Services.AddRouting(options =>
 });
 
 builder.Services.AddControllers();
+
+builder.Services.AddApiVersioning(opt =>
+{
+    opt.DefaultApiVersion = new ApiVersion(1, 0);
+    opt.AssumeDefaultVersionWhenUnspecified = true;
+    opt.ReportApiVersions = true;
+}).AddMvc();
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

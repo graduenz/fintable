@@ -18,7 +18,7 @@ public class ProvidersControllerTests : BaseControllerTests
         // Arrange (empty DB)
 
         // Act
-        var response = await Client.GetAsync("/providers");
+        var response = await Client.GetAsync("/v1/providers");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -37,7 +37,7 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         // Act
-        var response = await Client.GetAsync("/providers");
+        var response = await Client.GetAsync("/v1/providers");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -55,7 +55,7 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         // Act
-        var response = await Client.GetAsync($"/providers/{provider.Id}");
+        var response = await Client.GetAsync($"/v1/providers/{provider.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -73,7 +73,7 @@ public class ProvidersControllerTests : BaseControllerTests
         var nonExistentId = Id.New();
 
         // Act
-        var response = await Client.GetAsync($"/providers/{nonExistentId}");
+        var response = await Client.GetAsync($"/v1/providers/{nonExistentId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -96,7 +96,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/providers", dto, JsonOptions);
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -108,7 +108,7 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.Equal(dto.Name, created.Name);
         Assert.Equal(ProviderType.Organizze, created.Type);
 
-        var getResponse = await Client.GetAsync($"/providers/{created.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{created.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
         Assert.NotNull(fetched);
@@ -129,7 +129,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/providers", dto, JsonOptions);
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -153,7 +153,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/providers/{provider.Id}", updateDto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", updateDto, JsonOptions);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -161,7 +161,7 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.NotNull(updated);
         Assert.Equal(updatedName, updated.Name);
 
-        var getResponse = await Client.GetAsync($"/providers/{provider.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
         Assert.NotNull(fetched);
