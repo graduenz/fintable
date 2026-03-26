@@ -1,0 +1,49 @@
+---
+description: Instructions and details about the Fintable project
+alwaysApply: true
+---
+
+# Fintable
+
+Fintable is a lightweight .NET service that syncs personal finance data from one or more sources, normalizes and stores it locally, and exposes a simple REST API for querying and reporting.
+
+## Architecture
+- The project intentionally favors simplicity and pragmatism.
+- Main concept: Providers → Sync Ochestrator → [... Sync Services → SQLite (EF Core)] → REST API (reports).
+
+## Backend
+- Single .NET project for the application code.
+- Authentication: no authentication at all.
+- Dependency injection: .NET built-in dependency injection configured at `Program.cs`.
+- Mapping between types should be done using the `Mapster` NuGet package.
+
+## Design constraints
+- No DDD layers (no Domain/Application/Infrastructure separation).
+- No repository pattern; operations on top of `FintableDb` are the way to go.
+- DTOs should be received/returned by the APIs, and not the EF entity itself (such as `ProviderDto`).
+
+## Database
+- The database driver is SQLite for simplicity.
+- The database is not the source of truth, only a local projection/cache.
+- The actual finance data is fetched from different providers, such as Organizze.
+- If the DB is lost, the system can re-sync everything from the providers.
+- Database entities have a `string Id`, which is an `ULID` relying on the `Ulid` NuGet Package, that should be created using `Id.New()`.
+
+## Providers
+- Providers implement sync services, such as `OrganizzeSyncService`, that ensures the data is up to date.
+- The Organizze provider leverages on the `NOrganizze` NuGet package. It's maintained by the same author of Fintable.
+- Providers return DTOs that are mapped to EF entities in the sync service.
+- Provider metadata is stored as `Dictionary<string,string>` serialized to JSON using an EF Core ValueConverter (stored as TEXT in SQLite).
+- Provider metadata is used to store provider-specific configurations, such as user email and API key to make requests to the provider's APIs.
+
+## Structure (under Fintable project)
+- `/Features` → vertical-sliced feature implementations.
+- `/Models` → general models for the application, that are not exclusively persistence models.
+- `/Persistence` → Entity Framework related artifacts, such as DB models and database context implementation.
+- `/Organizze` → artifacts to work with the Organizze provider.
+
+## Tests
+- All tests should be added to the Fintable.Tests project and should use xUnit v3 as the test framework.
+- Unit tests should be written using AAA pattern (including comments), use Moq for mocking, and Bogus for creating test data.
+- Unit tests should always target to hit 100% code coverage.
+- Integration tests should rely on .NET's WebApplicationFactory (`factory`) in order to actually run an instance of the application to run tests against it using HttpClient, obtained via `factory.CreateClient()`.
