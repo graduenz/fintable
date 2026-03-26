@@ -86,9 +86,9 @@ namespace Fintable.Features.Providers
             if (requiredKeys is null)
                 return NotFound();
 
-            var normalizedType = type.Trim();
+            var normalizedType = type.Trim().ToLowerInvariant();
             var providers = await db.Providers
-                .Where(p => string.Equals(p.Type.Trim(), normalizedType, StringComparison.OrdinalIgnoreCase))
+                .Where(p => p.Type.Trim().ToLower() == normalizedType)
                 .ToListAsync();
 
             var providersDict = new Dictionary<string, ProviderValidateEntryDto>();
