@@ -4,6 +4,6 @@ namespace Fintable.Features.Sync
     {
         Task ExecuteAsync(CancellationToken cancellationToken = default);
 
-        Task ExecuteForProviderAsync(string providerId, CancellationToken cancellationToken = default);
+        Task<bool> ExecuteForProviderAsync(string providerId, CancellationToken cancellationToken = default);
     }
 }

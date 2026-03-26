@@ -20,15 +20,14 @@ namespace Fintable.Features.Sync
             }
         }
 
-        public async Task ExecuteForProviderAsync(string providerId, CancellationToken cancellationToken = default)
+        public async Task<bool> ExecuteForProviderAsync(string providerId, CancellationToken cancellationToken = default)
         {
             var provider = await db.Providers.FindAsync([providerId], cancellationToken);
             if (provider is null)
-            {
-                return;
-            }
+                return false;
 
             await SyncProviderAsync(provider, cancellationToken);
+            return true;
         }
 
         private async Task SyncProviderAsync(Provider provider, CancellationToken cancellationToken)

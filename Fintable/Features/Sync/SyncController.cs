@@ -18,8 +18,8 @@ namespace Fintable.Features.Sync
         [HttpPost("{providerId}")]
         public async Task<IActionResult> SyncProvider([FromRoute] string providerId, CancellationToken cancellationToken)
         {
-            await orchestrator.ExecuteForProviderAsync(providerId, cancellationToken);
-            return Ok();
+            var found = await orchestrator.ExecuteForProviderAsync(providerId, cancellationToken);
+            return found ? Ok() : NotFound();
         }
     }
 }

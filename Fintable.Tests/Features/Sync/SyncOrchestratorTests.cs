@@ -64,16 +64,16 @@ public class SyncOrchestratorTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteForProviderAsync_NonExistentProvider_CompletesSuccessfully()
+    public async Task ExecuteForProviderAsync_NonExistentProvider_ReturnsFalse()
     {
         // Arrange
         var nonExistentId = Id.New();
 
         // Act
-        var exception = await Record.ExceptionAsync(() => _orchestrator.ExecuteForProviderAsync(nonExistentId));
+        var found = await _orchestrator.ExecuteForProviderAsync(nonExistentId);
 
         // Assert
-        Assert.Null(exception);
+        Assert.False(found);
     }
 
     public void Dispose()
