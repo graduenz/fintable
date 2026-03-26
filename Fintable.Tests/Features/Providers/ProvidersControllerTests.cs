@@ -118,6 +118,24 @@ public class ProvidersControllerTests : BaseControllerTests
     }
 
     [Fact]
+    public async Task Create_EmptyName_ReturnsBadRequest()
+    {
+        // Arrange
+        var dto = new ProviderDto
+        {
+            Id = string.Empty,
+            Type = ProviderType.Organizze,
+            Name = string.Empty,
+        };
+
+        // Act
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Create_UnknownType_ReturnsBadRequest()
     {
         // Arrange
@@ -171,6 +189,28 @@ public class ProvidersControllerTests : BaseControllerTests
     }
 
     [Fact]
+    public async Task Update_EmptyName_ReturnsBadRequest()
+    {
+        // Arrange
+        var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
+        Db.Providers.Add(provider);
+        await Db.SaveChangesAsync();
+
+        var dto = new ProviderDto
+        {
+            Id = provider.Id,
+            Type = ProviderType.Organizze,
+            Name = string.Empty,
+        };
+
+        // Act
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Update_NonExistentProvider_ReturnsNotFound()
     {
         // Arrange
@@ -183,7 +223,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/providers/{nonExistentId}", dto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{nonExistentId}", dto, JsonOptions);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -205,7 +245,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/providers/{provider.Id}", dto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -220,7 +260,7 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         // Act
-        var response = await Client.DeleteAsync($"/providers/{provider.Id}");
+        var response = await Client.DeleteAsync($"/v1/providers/{provider.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -229,7 +269,7 @@ public class ProvidersControllerTests : BaseControllerTests
         var deleted = await Db.Providers.FindAsync(provider.Id);
         Assert.Null(deleted);
 
-        var getResponse = await Client.GetAsync($"/providers/{provider.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
@@ -240,7 +280,7 @@ public class ProvidersControllerTests : BaseControllerTests
         var nonExistentId = Id.New();
 
         // Act
-        var response = await Client.DeleteAsync($"/providers/{nonExistentId}");
+        var response = await Client.DeleteAsync($"/v1/providers/{nonExistentId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -250,7 +290,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Validate_UnknownType_ReturnsNotFound()
     {
         // Arrange & Act
-        var response = await Client.GetAsync("/providers/unknown/validate");
+        var response = await Client.GetAsync("/v1/providers/unknown/validate");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -275,7 +315,7 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         // Act
-        var response = await Client.GetAsync("/providers/organizze/validate");
+        var response = await Client.GetAsync("/v1/providers/organizze/validate");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -302,7 +342,7 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         // Act
-        var response = await Client.GetAsync("/providers/organizze/validate");
+        var response = await Client.GetAsync("/v1/providers/organizze/validate");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

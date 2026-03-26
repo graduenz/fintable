@@ -2,6 +2,8 @@ using Asp.Versioning;
 using Fintable.Features.Reports;
 using Fintable.Features.Sync;
 using Fintable.Persistence;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -24,6 +26,8 @@ builder.Services.AddRouting(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 builder.Services.AddApiVersioning(opt =>
 {
