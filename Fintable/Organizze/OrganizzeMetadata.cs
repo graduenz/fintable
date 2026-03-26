@@ -12,4 +12,6 @@ public class OrganizzeMetadata
             ?? throw new InvalidOperationException("Failed to deserialize Organizze metadata.");
 
     public NOrganizze.Credentials ToCredentials() => new(Email, ApiKey);
+
+    public static IReadOnlyList<string> RequiredKeys => ["email", "apiKey"];
 }

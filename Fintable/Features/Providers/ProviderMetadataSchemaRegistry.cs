@@ -1,4 +1,4 @@
-using Fintable;
+using Fintable.Organizze;
 
 namespace Fintable.Features.Providers;
 
@@ -9,7 +9,7 @@ public static class ProviderMetadataSchemaRegistry
         var normalized = providerType?.Trim().ToLowerInvariant() ?? "";
         return normalized switch
         {
-            _ when normalized == ProviderType.Organizze => ["email", "apiKey"],
+            _ when normalized == ProviderType.Organizze => OrganizzeMetadata.RequiredKeys,
             _ => null
         };
     }

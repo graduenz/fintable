@@ -1,4 +1,3 @@
-using Fintable;
 using Fintable.Organizze;
 using Fintable.Persistence;
 using Microsoft.EntityFrameworkCore;
