@@ -25,6 +25,8 @@ builder.Services.AddRouting(options =>
     options.LowercaseQueryStrings = true;
 });
 
+builder.Services.AddProblemDetails();
+
 builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -46,10 +48,10 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
