@@ -61,6 +61,8 @@ You are a senior .NET backend developer and an expert in C#, ASP.NET Core, and E
 - Write unit tests using xUnit v3.
 - Use Moq for mocking dependencies.
 - Implement integration tests for API endpoints.
+- Add `public partial class Program { }` in `Program.cs` whenever using `WebApplicationFactory<Program>` for integration tests.
+- Prefer `global using Xunit;` in the test projects, in a `GlobalUsings.cs` file.
 
 ## Security
 - Use Authentication and Authorization middleware.

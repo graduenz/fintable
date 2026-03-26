@@ -28,6 +28,9 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - The actual finance data is fetched from different providers, such as Organizze.
 - If the DB is lost, the system can re-sync everything from the providers.
 - Database entities have a `string Id`, which is an `ULID` relying on the `Ulid` NuGet Package, that should be created using `Id.New()`.
+- Avoid unsupported EF translations in controller queries: 
+  - Do not use `string.Equals(..., StringComparison.OrdinalIgnoreCase)` inside `IQueryable` LINQ.
+  - Use SQL-translatable alternatives (`ToLower()`/`ToUpper()` normalization) or evaluate in-memory after materialization.
 
 ## Providers
 - Providers implement sync services, such as `OrganizzeSyncService`, that ensures the data is up to date.
@@ -41,9 +44,3 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - `/Models` → general models for the application, that are not exclusively persistence models.
 - `/Persistence` → Entity Framework related artifacts, such as DB models and database context implementation.
 - `/Organizze` → artifacts to work with the Organizze provider.
-
-## Tests
-- All tests should be added to the Fintable.Tests project and should use xUnit v3 as the test framework.
-- Unit tests should be written using AAA pattern (including comments), use Moq for mocking, and Bogus for creating test data.
-- Unit tests should always target to hit 100% code coverage.
-- Integration tests should rely on .NET's WebApplicationFactory (`factory`) in order to actually run an instance of the application to run tests against it using HttpClient, obtained via `factory.CreateClient()`.
