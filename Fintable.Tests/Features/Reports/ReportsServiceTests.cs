@@ -120,8 +120,44 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal(1, providerStats.CreditCards);
         Assert.NotNull(providerStats.Invoices);
         Assert.Equal(1, providerStats.Invoices.Count);
+        Assert.NotNull(providerStats.Invoices.FirstDate);
+        Assert.NotNull(providerStats.Invoices.LastDate);
         Assert.NotNull(providerStats.Transactions);
         Assert.Equal(1, providerStats.Transactions.Count);
+        Assert.NotNull(providerStats.Transactions.FirstDate);
+        Assert.NotNull(providerStats.Transactions.LastDate);
+    }
+
+    [Fact]
+    public async Task GetStatsReportAsync_WithProviderButNoData_ReturnsNullDates()
+    {
+        // Arrange
+        var faker = new Faker();
+        var provider = new Provider
+        {
+            Id = Id.New(),
+            Type = ProviderType.Organizze,
+            Name = faker.Company.CompanyName(),
+        };
+        _db.Providers.Add(provider);
+        await _db.SaveChangesAsync();
+
+        var service = new ReportsService(_db);
+
+        // Act
+        var report = await service.GetStatsReportAsync();
+
+        // Assert
+        Assert.NotNull(report.Providers);
+        var providerStats = report.Providers[provider.Name];
+        Assert.NotNull(providerStats.Invoices);
+        Assert.Equal(0, providerStats.Invoices.Count);
+        Assert.Null(providerStats.Invoices.FirstDate);
+        Assert.Null(providerStats.Invoices.LastDate);
+        Assert.NotNull(providerStats.Transactions);
+        Assert.Equal(0, providerStats.Transactions.Count);
+        Assert.Null(providerStats.Transactions.FirstDate);
+        Assert.Null(providerStats.Transactions.LastDate);
     }
 
     [Fact]

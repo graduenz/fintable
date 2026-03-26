@@ -36,14 +36,14 @@ namespace Fintable.Features.Reports
                         CreditCards = providerCreditCards.Count,
                         Invoices = new InvoiceStatsReportDto
                         {
-                            FirstDate = providerInvoices.Min(i => i.Date),
-                            LastDate = providerInvoices.Max(i => i.Date),
+                            FirstDate = providerInvoices.Count > 0 ? providerInvoices.Min(i => i.Date) : null,
+                            LastDate = providerInvoices.Count > 0 ? providerInvoices.Max(i => i.Date) : null,
                             Count = providerInvoices.Count
                         },
                         Transactions = new TransactionStatsReportDto
                         {
-                            FirstDate = providerTransactions.Min(t => t.Date),
-                            LastDate = providerTransactions.Max(t => t.Date),
+                            FirstDate = providerTransactions.Count > 0 ? providerTransactions.Min(t => t.Date) : null,
+                            LastDate = providerTransactions.Count > 0 ? providerTransactions.Max(t => t.Date) : null,
                             Count = providerTransactions.Count
                         }
                     };

@@ -23,15 +23,15 @@ namespace Fintable.Features.Reports
 
     public class InvoiceStatsReportDto
     {
-        public DateTime FirstDate { get; set; }
-        public DateTime LastDate { get; set; }
+        public DateTime? FirstDate { get; set; }
+        public DateTime? LastDate { get; set; }
         public int Count { get; set; }
     }
 
     public class TransactionStatsReportDto
     {
-        public DateTime FirstDate { get; set; }
-        public DateTime LastDate { get; set; }
+        public DateTime? FirstDate { get; set; }
+        public DateTime? LastDate { get; set; }
         public int Count { get; set; }
     }
 }
