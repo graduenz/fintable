@@ -64,12 +64,6 @@ You are a senior .NET backend developer and an expert in C#, ASP.NET Core, and E
 - Add `public partial class Program { }` in `Program.cs` whenever using `WebApplicationFactory<Program>` for integration tests.
 - Prefer `global using Xunit;` in the test projects, in a `GlobalUsings.cs` file.
 
-## Security
-- Use Authentication and Authorization middleware.
-- Implement JWT authentication for stateless API authentication.
-- Use HTTPS and enforce SSL.
-- Implement proper CORS policies.
-
 ## API Documentation
 - Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).
 - Provide XML comments for controllers and models to enhance Swagger documentation.
