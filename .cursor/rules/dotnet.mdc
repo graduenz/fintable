@@ -65,7 +65,7 @@ You are a senior .NET backend developer and an expert in C#, ASP.NET Core, and E
 - Prefer `global using Xunit;` in the test projects, in a `GlobalUsings.cs` file.
 
 ## API Documentation
-- Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).
-- Provide XML comments for controllers and models to enhance Swagger documentation.
+- Use Scalar/OpenAPI for API documentation (as per installed `Scalar.AspNetCore` package).
+- Provide XML comments for controllers and models to enhance OpenAPI documentation.
 
 Follow the official Microsoft documentation and ASP.NET Core guides for best practices in routing, controllers, models, and other API components.
