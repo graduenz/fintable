@@ -11,6 +11,8 @@ namespace Fintable.Features.Reports
         private const string KindCreditCard = "CreditCard";
         private const string KindUnknown = "Unknown";
 
+        internal static decimal CentsToBrl(int cents) => cents / 100m;
+
         public async Task<StatsReportDto> GetStatsReportAsync()
         {
             var providers = await db.Providers.ToListAsync();
@@ -171,7 +173,7 @@ namespace Fintable.Features.Reports
                     monthCells.Add(new FintableReportCellDto
                     {
                         Month = monthGroup.Key,
-                        Value = Math.Abs(totalValue),
+                        Value = CentsToBrl(Math.Abs(totalValue)),
                         Paid = allPaid,
                     });
                 }
@@ -201,7 +203,7 @@ namespace Fintable.Features.Reports
                 cells.Add(new FintableReportCellDto
                 {
                     Month = group.Key,
-                    Value = Math.Abs(sum),
+                    Value = CentsToBrl(Math.Abs(sum)),
                     Paid = allPaid,
                 });
             }
@@ -218,7 +220,7 @@ namespace Fintable.Features.Reports
             {
                 result.Add(byMonth.TryGetValue(month, out var cell)
                     ? cell
-                    : new FintableReportCellDto { Month = month, Value = 0, Paid = null });
+                    : new FintableReportCellDto { Month = month, Value = 0m, Paid = null });
             }
 
             return result;

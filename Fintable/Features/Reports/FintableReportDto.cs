@@ -16,6 +16,6 @@ public class FintableReportRowDto
 public class FintableReportCellDto
 {
     public int Month { get; set; }
-    public int Value { get; set; }
+    public decimal Value { get; set; }
     public bool? Paid { get; set; }
 }

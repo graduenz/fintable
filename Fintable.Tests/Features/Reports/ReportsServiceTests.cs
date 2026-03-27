@@ -219,7 +219,7 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal("Income", row.Kind);
         Assert.Equal(12, row.Months.Count);
         var march = row.Months.Single(m => m.Month == 3);
-        Assert.Equal(500000, march.Value);
+        Assert.Equal(5000m, march.Value);
         Assert.True(march.Paid);
     }
 
@@ -245,7 +245,7 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal("Groceries", row.Category);
         Assert.Equal("Expense", row.Kind);
         var january = row.Months.Single(m => m.Month == 1);
-        Assert.Equal(23000, january.Value);
+        Assert.Equal(230m, january.Value);
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal("Amex", row.Category);
         Assert.Equal("CreditCard", row.Kind);
         var january = row.Months.Single(m => m.Month == 1);
-        Assert.Equal(200000, january.Value);
+        Assert.Equal(2000m, january.Value);
         Assert.False(january.Paid);
     }
 
@@ -398,7 +398,7 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal("Uncategorized", row.Category);
         Assert.Equal("Expense", row.Kind);
         var june = row.Months.Single(m => m.Month == 6);
-        Assert.Equal(7500, june.Value);
+        Assert.Equal(75m, june.Value);
     }
 
     [Fact]
@@ -511,7 +511,7 @@ public class ReportsServiceTests : IDisposable
         var row = Assert.Single(report.Rows);
         Assert.Equal(12, row.Months.Count);
         var february = row.Months.Single(m => m.Month == 2);
-        Assert.Equal(0, february.Value);
+        Assert.Equal(0m, february.Value);
         Assert.Null(february.Paid);
     }
 
@@ -554,6 +554,20 @@ public class ReportsServiceTests : IDisposable
     #endregion
 
     #region Static helper tests
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(100, 1)]
+    [InlineData(1, 0.01)]
+    [InlineData(12345, 123.45)]
+    public void CentsToBrl_ConvertsToDecimalBrl(int cents, decimal expectedBrl)
+    {
+        // Act
+        var result = ReportsService.CentsToBrl(cents);
+
+        // Assert
+        Assert.Equal(expectedBrl, result);
+    }
 
     [Fact]
     public void GetFlattenedCategoryName_WithParent_ReturnsCombinedName()
@@ -611,8 +625,8 @@ public class ReportsServiceTests : IDisposable
         // Arrange
         var cells = new List<FintableReportCellDto>
         {
-            new() { Month = 3, Value = 100, Paid = true },
-            new() { Month = 7, Value = 200, Paid = false },
+            new() { Month = 3, Value = 100m, Paid = true },
+            new() { Month = 7, Value = 200m, Paid = false },
         };
 
         // Act
@@ -620,11 +634,11 @@ public class ReportsServiceTests : IDisposable
 
         // Assert
         Assert.Equal(12, result.Count);
-        Assert.Equal(100, result[2].Value);
+        Assert.Equal(100m, result[2].Value);
         Assert.True(result[2].Paid);
-        Assert.Equal(200, result[6].Value);
+        Assert.Equal(200m, result[6].Value);
         Assert.False(result[6].Paid);
-        Assert.Equal(0, result[0].Value);
+        Assert.Equal(0m, result[0].Value);
         Assert.Null(result[0].Paid);
     }
 
@@ -641,7 +655,7 @@ public class ReportsServiceTests : IDisposable
         Assert.Equal(12, result.Count);
         Assert.All(result, c =>
         {
-            Assert.Equal(0, c.Value);
+            Assert.Equal(0m, c.Value);
             Assert.Null(c.Paid);
         });
     }
@@ -765,7 +779,7 @@ public class ReportsServiceTests : IDisposable
 
         // Assert
         var may = result.Single(c => c.Month == 5);
-        Assert.Equal(5000, may.Value);
+        Assert.Equal(50m, may.Value);
         Assert.True(may.Paid);
     }
 
