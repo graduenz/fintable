@@ -87,6 +87,12 @@ POST /v1/sync
 
 > Metadata values (secrets) are masked as `**********` in GET responses.
 
+## CI / CD
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push to `main` and on pull requests. It builds, runs tests with code coverage, and reports results to [SonarCloud](https://sonarcloud.io/project/overview?id=graduenz_fintable).
+
+**Required secret:** add a `SONAR_TOKEN` secret in your GitHub repository settings (Settings > Secrets and variables > Actions). Generate the token from SonarCloud under My Account > Security.
+
 ## API Reference
 
 | Method | Route | Description |
