@@ -45,7 +45,11 @@ public abstract class BaseControllerTests : IAsyncLifetime, IDisposable
         await Db.Database.EnsureCreatedAsync();
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
+    }
 
     public void Dispose()
     {

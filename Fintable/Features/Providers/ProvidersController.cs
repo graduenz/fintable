@@ -108,8 +108,8 @@ namespace Fintable.Features.Providers
 
             var normalizedType = type.Trim().ToLowerInvariant();
             var providers = await db.Providers
-                .Where(p => p.Type.Trim().ToLower() == normalizedType)
                 .ToListAsync();
+            providers = [.. providers.Where(p => string.Equals(p.Type?.Trim(), normalizedType, StringComparison.OrdinalIgnoreCase))];
 
             var providersDict = new Dictionary<string, ProviderValidateEntryDto>();
             var allFullySetUp = true;

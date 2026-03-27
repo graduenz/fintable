@@ -23,13 +23,13 @@ public class OrganizzeSyncService
         var accountsMap = await SyncAccountsAsync(provider, cancellationToken);
         var categoriesMap = await SyncCategoriesAsync(provider, cancellationToken);
         var creditCardsMap = await SyncCreditCardsAsync(provider, cancellationToken);
-        var invoicesMap = await SyncInvoicesAsync(provider, creditCardsMap, cancellationToken);
-        await SyncTransactionsAsync(provider, accountsMap, categoriesMap, creditCardsMap, invoicesMap, cancellationToken);
+        var invoicesMap = await SyncInvoicesAsync(creditCardsMap, cancellationToken);
+        await SyncTransactionsAsync(accountsMap, categoriesMap, creditCardsMap, invoicesMap, cancellationToken);
     }
 
     private async Task<Dictionary<string, string>> SyncAccountsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteAccounts = await _client.Accounts.ListAsync();
+        var remoteAccounts = await _client.Accounts.ListAsync(cancellationToken: cancellationToken);
 
         var existing = await _db.Accounts
             .Where(a => a.ProviderId == provider.Id)
@@ -67,7 +67,7 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncCategoriesAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteCategories = await _client.Categories.ListAsync();
+        var remoteCategories = await _client.Categories.ListAsync(cancellationToken: cancellationToken);
 
         var existing = await _db.Categories
             .Where(c => c.ProviderId == provider.Id)
@@ -105,7 +105,7 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncCreditCardsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteCards = await _client.CreditCards.ListAsync();
+        var remoteCards = await _client.CreditCards.ListAsync(cancellationToken: cancellationToken);
 
         var existing = await _db.CreditCards
             .Where(c => c.ProviderId == provider.Id)
@@ -142,7 +142,6 @@ public class OrganizzeSyncService
     }
 
     private async Task<Dictionary<string, string>> SyncInvoicesAsync(
-        Provider provider,
         Dictionary<string, string> creditCardsMap,
         CancellationToken cancellationToken)
     {
@@ -165,11 +164,14 @@ public class OrganizzeSyncService
             var creditCardRemoteId = long.Parse(creditCardExternalId);
             foreach (var (start, end) in yearRanges)
             {
-                var remoteInvoices = await _client.Invoices.ListAsync(creditCardRemoteId, new NOrganizze.Invoices.InvoiceListOptions
-                {
-                    StartDate = start,
-                    EndDate = end,
-                });
+                var remoteInvoices = await _client.Invoices.ListAsync(
+                    creditCardRemoteId,
+                    new NOrganizze.Invoices.InvoiceListOptions
+                    {
+                        StartDate = start,
+                        EndDate = end,
+                    },
+                    cancellationToken: cancellationToken);
 
                 foreach (var remote in remoteInvoices)
                 {
@@ -208,7 +210,6 @@ public class OrganizzeSyncService
     }
 
     private async Task SyncTransactionsAsync(
-        Provider provider,
         Dictionary<string, string> accountsMap,
         Dictionary<string, string> categoriesMap,
         Dictionary<string, string> creditCardsMap,
@@ -228,11 +229,13 @@ public class OrganizzeSyncService
 
         foreach (var (start, end) in yearRanges)
         {
-            var remoteTransactions = await _client.Transactions.ListAsync(new NOrganizze.Transactions.TransactionListOptions
-            {
-                StartDate = start,
-                EndDate = end,
-            });
+            var remoteTransactions = await _client.Transactions.ListAsync(
+                new NOrganizze.Transactions.TransactionListOptions
+                {
+                    StartDate = start,
+                    EndDate = end,
+                },
+                cancellationToken: cancellationToken);
 
             foreach (var remote in remoteTransactions)
             {

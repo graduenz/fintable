@@ -12,7 +12,7 @@ internal static class SyncDateRangeCalculator
 
         for (var year = startYear; year <= endYear; year++)
         {
-            var start = new DateTime(year, 1, 1);
+            var start = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             var end = new DateTime(year, 12, 31, 23, 59, 59, 999, DateTimeKind.Utc);
             ranges.Add((start, end));
         }
