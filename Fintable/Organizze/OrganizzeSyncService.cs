@@ -99,9 +99,34 @@ public class OrganizzeSyncService
             byExternalId[externalId] = newCategory;
         }
 
+        AssignCategoryParentsFromRemote(remoteCategories, byExternalId);
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
+    }
+
+    internal static void AssignCategoryParentsFromRemote(
+        IEnumerable<NOrganizze.Categories.Category> remoteCategories,
+        IDictionary<string, Category> byExternalId)
+    {
+        foreach (var remote in remoteCategories)
+        {
+            if (!byExternalId.TryGetValue(remote.Id.ToString(), out var category))
+            {
+                continue;
+            }
+
+            if (remote.ParentId is { } parentExternalId && parentExternalId > 0
+                && byExternalId.TryGetValue(parentExternalId.ToString(), out var parentCategory))
+            {
+                category.ParentId = parentCategory.Id;
+            }
+            else
+            {
+                category.ParentId = null;
+            }
+        }
     }
 
     private async Task<Dictionary<string, string>> SyncCreditCardsAsync(Provider provider, CancellationToken cancellationToken)

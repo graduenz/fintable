@@ -69,6 +69,12 @@ public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(option
                 .WithMany(p => p.Categories)
                 .HasForeignKey(e => e.ProviderId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Parent)
+                .WithMany(e => e.Children)
+                .HasForeignKey(e => e.ParentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
         });
 
         modelBuilder.Entity<Invoice>(entity =>

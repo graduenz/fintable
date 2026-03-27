@@ -1,6 +1,7 @@
 using Bogus;
 using Fintable.Organizze;
 using Fintable.Persistence;
+using OrganizzeCategory = NOrganizze.Categories.Category;
 using OrganizzeTransaction = NOrganizze.Transactions.Transaction;
 
 namespace Fintable.Tests.Organizze;
@@ -92,5 +93,72 @@ public class OrganizzeSyncServiceTests
 
         // Assert
         Assert.Null(resolvedInvoiceId);
+    }
+
+    [Fact]
+    public void AssignCategoryParentsFromRemote_ChildReferencesParent_SetsParentIdToLocalParent()
+    {
+        // Arrange
+        var providerId = Id.New();
+        var parent = new Category
+        {
+            Id = Id.New(),
+            Name = _faker.Commerce.Department(),
+            ProviderId = providerId,
+            ExternalId = "10",
+        };
+        var child = new Category
+        {
+            Id = Id.New(),
+            Name = _faker.Commerce.Categories(1)[0],
+            ProviderId = providerId,
+            ExternalId = "20",
+        };
+        var byExternalId = new Dictionary<string, Category>
+        {
+            [parent.ExternalId] = parent,
+            [child.ExternalId] = child,
+        };
+        var remoteCategories = new[]
+        {
+            new OrganizzeCategory { Id = 10, Name = parent.Name, ParentId = null },
+            new OrganizzeCategory { Id = 20, Name = child.Name, ParentId = 10 },
+        };
+
+        // Act
+        OrganizzeSyncService.AssignCategoryParentsFromRemote(remoteCategories, byExternalId);
+
+        // Assert
+        Assert.Equal(parent.Id, child.ParentId);
+        Assert.Null(parent.ParentId);
+    }
+
+    [Fact]
+    public void AssignCategoryParentsFromRemote_ParentMissingInMap_ClearsParentId()
+    {
+        // Arrange
+        var providerId = Id.New();
+        var child = new Category
+        {
+            Id = Id.New(),
+            Name = _faker.Commerce.Categories(1)[0],
+            ProviderId = providerId,
+            ExternalId = "20",
+            ParentId = Id.New(),
+        };
+        var byExternalId = new Dictionary<string, Category>
+        {
+            [child.ExternalId] = child,
+        };
+        var remoteCategories = new[]
+        {
+            new OrganizzeCategory { Id = 20, Name = child.Name, ParentId = 99 },
+        };
+
+        // Act
+        OrganizzeSyncService.AssignCategoryParentsFromRemote(remoteCategories, byExternalId);
+
+        // Assert
+        Assert.Null(child.ParentId);
     }
 }

@@ -10,6 +10,10 @@ public class Category
     public required string ProviderId { get; set; }
     public required string ExternalId { get; set; }
 
+    public string? ParentId { get; set; }
+    public Category? Parent { get; set; }
+    public ICollection<Category> Children { get; set; } = [];
+
     public Provider? Provider { get; set; }
     public ICollection<Transaction> Transactions { get; set; } = [];
 }
