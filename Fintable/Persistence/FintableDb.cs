@@ -62,6 +62,7 @@ public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(option
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired();
+            entity.Property(e => e.Kind).IsRequired();
             entity.Property(e => e.ExternalId).IsRequired();
 
             entity.HasOne(e => e.Provider)

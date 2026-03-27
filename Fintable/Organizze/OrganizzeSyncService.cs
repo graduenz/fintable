@@ -1,4 +1,5 @@
 using Fintable.Features.Sync;
+using Fintable.Models;
 using Fintable.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -220,10 +221,15 @@ public class OrganizzeSyncService
 
         var providerAccountIds = accountsMap.Values.ToHashSet();
         var providerCreditCardIds = creditCardsMap.Values.ToHashSet();
+        var providerCategoryIds = categoriesMap.Values.ToHashSet();
 
         var existing = await _db.Transactions
             .Where(t => providerAccountIds.Contains(t.AccountId) || providerCreditCardIds.Contains(t.AccountId))
             .ToListAsync(cancellationToken);
+
+        var categoriesById = await _db.Categories
+            .Where(c => providerCategoryIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
 
         var byExternalId = existing.ToDictionary(t => t.ExternalId, t => t);
 
@@ -262,6 +268,7 @@ public class OrganizzeSyncService
                     ? mappedId
                     : null;
                 var localInvoiceId = ResolveLocalInvoiceId(remote, invoicesMap);
+                ApplyCategoryKindInference(localCategoryId, remote.AmountCents, categoriesById);
 
                 if (byExternalId.TryGetValue(externalId, out var transaction))
                 {
@@ -303,6 +310,49 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void ApplyCategoryKindInference(
+        string? localCategoryId,
+        int amountCents,
+        IReadOnlyDictionary<string, Category> categoriesById)
+    {
+        if (localCategoryId is null || !categoriesById.TryGetValue(localCategoryId, out var category))
+        {
+            return;
+        }
+
+        var inferredKind = InferCategoryKind(amountCents);
+        if (inferredKind == CategoryKind.Unknown)
+        {
+            return;
+        }
+
+        if (category.Kind == CategoryKind.Unknown)
+        {
+            category.Kind = inferredKind;
+            return;
+        }
+
+        if (category.Kind != inferredKind)
+        {
+            category.Kind = CategoryKind.Unknown;
+        }
+    }
+
+    private static CategoryKind InferCategoryKind(int amountCents)
+    {
+        if (amountCents < 0)
+        {
+            return CategoryKind.Expense;
+        }
+
+        if (amountCents > 0)
+        {
+            return CategoryKind.Income;
+        }
+
+        return CategoryKind.Unknown;
     }
 
     internal static string? ResolveLocalInvoiceId(
