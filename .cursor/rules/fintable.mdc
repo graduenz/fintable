@@ -17,7 +17,7 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - Dependency injection: .NET built-in dependency injection configured at `Program.cs`.
 - Mapping between types should be done using the `Mapster` NuGet package.
 
-## Design constraints
+## Design Constraints
 - No DDD layers (no Domain/Application/Infrastructure separation).
 - No repository pattern; operations on top of `FintableDb` are the way to go.
 - DTOs should be received/returned by the APIs, and not the EF entity itself (such as `ProviderDto`).

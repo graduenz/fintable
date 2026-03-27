@@ -4,14 +4,15 @@ globs: Fintable.Tests/**
 alwaysApply: false
 ---
 
-## Implementing tests
+## Implementing Tests
 - All tests should be added to the Fintable.Tests project and should use xUnit v3 as the test framework.
 - Unit tests should be written using AAA pattern (including comments), use Moq for mocking, and Bogus for creating test data.
 - Unit tests should always target to hit 100% code coverage.
 - Integration tests for controllers should inherit `BaseControllerTests` in order to set up and make requests to the API.
 - One assertion theme per test (avoid multiple unrelated behaviors in one test).
+- Class-oriented tests: unit tests should have one test class per tested class.
 
-## Test naming convention
+## Test Naming Convention
 - Pattern: `MethodName_Scenario_ExpectedResult`
   - Start with the member under test (`MethodName`).
   - Scenario segment should describe the single condition being tested.
@@ -45,7 +46,7 @@ alwaysApply: false
 - For endpoints that mutate a resource (such as `POST`, `PUT`, `PATCH`, and `DELETE`), and a `GET` endpoint is available to get the resource, include making a `GET` request in the assertions to ensure it was proprely mutated.
 - Do not consider an integration test complete if it validates only status code without payload and persistence checks where relevant.
 
-## Test verification (build + test)
+## Test Verification (Build + Test)
 - After adding or changing tests, always validate the solution with:
   - `dotnet build`
   - `dotnet test`
