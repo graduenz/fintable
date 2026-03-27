@@ -11,6 +11,7 @@ public class ProvidersControllerTests : BaseControllerTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly Faker _faker = new();
+    private const string MaskedSecretValue = "**********";
 
     [Fact]
     public async Task GetAll_EmptyDb_ReturnsEmptyList()
@@ -31,8 +32,22 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task GetAll_WithProviders_ReturnsAll()
     {
         // Arrange
-        var provider1 = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
-        var provider2 = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
+        var provider1ApiKey = _faker.Random.AlphaNumeric(24);
+        var provider2Email = _faker.Internet.Email();
+        var provider1 = new Provider
+        {
+            Id = Id.New(),
+            Type = ProviderType.Organizze,
+            Name = _faker.Company.CompanyName(),
+            Metadata = new Dictionary<string, string> { ["apiKey"] = provider1ApiKey },
+        };
+        var provider2 = new Provider
+        {
+            Id = Id.New(),
+            Type = ProviderType.Organizze,
+            Name = _faker.Company.CompanyName(),
+            Metadata = new Dictionary<string, string> { ["email"] = provider2Email },
+        };
         Db.Providers.AddRange(provider1, provider2);
         await Db.SaveChangesAsync();
 
@@ -44,13 +59,22 @@ public class ProvidersControllerTests : BaseControllerTests
         var providers = await response.Content.ReadFromJsonAsync<List<ProviderDto>>(JsonOptions);
         Assert.NotNull(providers);
         Assert.Equal(2, providers.Count);
+        Assert.Equal(MaskedSecretValue, providers.Single(p => p.Id == provider1.Id).Metadata?["apiKey"]);
+        Assert.Equal(MaskedSecretValue, providers.Single(p => p.Id == provider2.Id).Metadata?["email"]);
     }
 
     [Fact]
     public async Task Get_ExistingProvider_ReturnsProvider()
     {
         // Arrange
-        var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
+        var apiKey = _faker.Random.AlphaNumeric(32);
+        var provider = new Provider
+        {
+            Id = Id.New(),
+            Type = ProviderType.Organizze,
+            Name = _faker.Company.CompanyName(),
+            Metadata = new Dictionary<string, string> { ["apiKey"] = apiKey },
+        };
         Db.Providers.Add(provider);
         await Db.SaveChangesAsync();
 
@@ -64,6 +88,7 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.Equal(provider.Id, dto.Id);
         Assert.Equal(provider.Name, dto.Name);
         Assert.Equal(provider.Type, dto.Type);
+        Assert.Equal(MaskedSecretValue, dto.Metadata?["apiKey"]);
     }
 
     [Fact]
@@ -83,6 +108,8 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Create_ValidProvider_ReturnsCreated()
     {
         // Arrange
+        var email = _faker.Internet.Email();
+        var apiKey = _faker.Random.AlphaNumeric(32);
         var dto = new ProviderDto
         {
             Id = string.Empty,
@@ -90,8 +117,8 @@ public class ProvidersControllerTests : BaseControllerTests
             Name = _faker.Company.CompanyName(),
             Metadata = new Dictionary<string, string>
             {
-                ["email"] = _faker.Internet.Email(),
-                ["apiKey"] = _faker.Random.AlphaNumeric(32),
+                ["email"] = email,
+                ["apiKey"] = apiKey,
             },
         };
 
@@ -107,6 +134,14 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.NotEqual(string.Empty, created.Id);
         Assert.Equal(dto.Name, created.Name);
         Assert.Equal(ProviderType.Organizze, created.Type);
+        Assert.Equal(MaskedSecretValue, created.Metadata?["email"]);
+        Assert.Equal(MaskedSecretValue, created.Metadata?["apiKey"]);
+
+        Db.ChangeTracker.Clear();
+        var persisted = await Db.Providers.FindAsync(created.Id);
+        Assert.NotNull(persisted);
+        Assert.Equal(email, persisted.Metadata?["email"]);
+        Assert.Equal(apiKey, persisted.Metadata?["apiKey"]);
 
         var getResponse = await Client.GetAsync($"/v1/providers/{created.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
@@ -115,6 +150,8 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.Equal(created.Id, fetched.Id);
         Assert.Equal(dto.Name, fetched.Name);
         Assert.Equal(ProviderType.Organizze, fetched.Type);
+        Assert.Equal(MaskedSecretValue, fetched.Metadata?["email"]);
+        Assert.Equal(MaskedSecretValue, fetched.Metadata?["apiKey"]);
     }
 
     [Fact]
@@ -162,12 +199,14 @@ public class ProvidersControllerTests : BaseControllerTests
         await Db.SaveChangesAsync();
 
         var updatedName = _faker.Company.CompanyName();
+        var email = _faker.Internet.Email();
+        var apiKey = _faker.Random.AlphaNumeric(32);
         var updateDto = new ProviderDto
         {
             Id = provider.Id,
             Type = ProviderType.Organizze,
             Name = updatedName,
-            Metadata = new Dictionary<string, string> { ["email"] = _faker.Internet.Email(), ["apiKey"] = _faker.Random.AlphaNumeric(32) },
+            Metadata = new Dictionary<string, string> { ["email"] = email, ["apiKey"] = apiKey },
         };
 
         // Act
@@ -178,6 +217,14 @@ public class ProvidersControllerTests : BaseControllerTests
         var updated = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
         Assert.NotNull(updated);
         Assert.Equal(updatedName, updated.Name);
+        Assert.Equal(MaskedSecretValue, updated.Metadata?["email"]);
+        Assert.Equal(MaskedSecretValue, updated.Metadata?["apiKey"]);
+
+        Db.ChangeTracker.Clear();
+        var persisted = await Db.Providers.FindAsync(provider.Id);
+        Assert.NotNull(persisted);
+        Assert.Equal(email, persisted.Metadata?["email"]);
+        Assert.Equal(apiKey, persisted.Metadata?["apiKey"]);
 
         var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
@@ -186,6 +233,8 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.Equal(provider.Id, fetched.Id);
         Assert.Equal(updatedName, fetched.Name);
         Assert.Equal(ProviderType.Organizze, fetched.Type);
+        Assert.Equal(MaskedSecretValue, fetched.Metadata?["email"]);
+        Assert.Equal(MaskedSecretValue, fetched.Metadata?["apiKey"]);
     }
 
     [Fact]

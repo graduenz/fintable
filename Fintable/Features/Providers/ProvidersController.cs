@@ -11,6 +11,25 @@ namespace Fintable.Features.Providers
     [Route("v{version:apiVersion}/[controller]")]
     public class ProvidersController(FintableDb db) : ControllerBase
     {
+        private const string MaskedSecretValue = "**********";
+
+        private static ProviderDto ToResponseDto(Provider provider)
+        {
+            var dto = provider.Adapt<ProviderDto>();
+            dto.Metadata = MaskMetadata(dto.Metadata);
+            return dto;
+        }
+
+        private static Dictionary<string, string>? MaskMetadata(Dictionary<string, string>? metadata)
+        {
+            if (metadata is null)
+                return null;
+
+            return metadata.ToDictionary(
+                kvp => kvp.Key,
+                kvp => string.IsNullOrEmpty(kvp.Value) ? string.Empty : MaskedSecretValue);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([FromRoute] string id)
         {
@@ -18,15 +37,14 @@ namespace Fintable.Features.Providers
             if (provider == null)
                 return NotFound();
 
-            var dto = provider.Adapt<ProviderDto>();
-            return Ok(dto);
+            return Ok(ToResponseDto(provider));
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
             var providers = await db.Providers.ToListAsync();
-            var dtos = providers.Adapt<List<ProviderDto>>();
+            var dtos = providers.Select(ToResponseDto).ToList();
             return Ok(dtos);
         }
 
@@ -44,7 +62,7 @@ namespace Fintable.Features.Providers
             db.Providers.Add(provider);
             await db.SaveChangesAsync();
 
-            var createdDto = provider.Adapt<ProviderDto>();
+            var createdDto = ToResponseDto(provider);
             return CreatedAtAction(nameof(Get), new { id = provider.Id }, createdDto);
         }
 
@@ -64,7 +82,7 @@ namespace Fintable.Features.Providers
             provider.Metadata = providerDto.Metadata;
             await db.SaveChangesAsync();
 
-            var updatedDto = provider.Adapt<ProviderDto>();
+            var updatedDto = ToResponseDto(provider);
             return Ok(updatedDto);
         }
 
