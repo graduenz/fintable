@@ -8,11 +8,12 @@ public class ApiSetupTests : BaseControllerTests
     public async Task UnknownEndpoint_ReturnsNotFound_WithProblemDetails()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         using var request = new HttpRequestMessage(HttpMethod.Get, "/v1/__route-that-will-never-exist__");
         request.Headers.Add("Accept", "application/problem+json");
 
         // Act
-        var response = await Client.SendAsync(request);
+        var response = await Client.SendAsync(request, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

@@ -33,9 +33,10 @@ public class SyncOrchestratorTests : IDisposable
     public async Task ExecuteAsync_NoProviders_CompletesSuccessfully()
     {
         // Arrange (empty DB)
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var exception = await Record.ExceptionAsync(() => _orchestrator.ExecuteAsync());
+        var exception = await Record.ExceptionAsync(() => _orchestrator.ExecuteAsync(cancellationToken));
 
         // Assert
         Assert.Null(exception);
@@ -45,6 +46,7 @@ public class SyncOrchestratorTests : IDisposable
     public async Task ExecuteAsync_NonOrganizzeProvider_SkipsSync()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var faker = new Faker();
         var provider = new Provider
         {
@@ -53,14 +55,14 @@ public class SyncOrchestratorTests : IDisposable
             Name = faker.Company.CompanyName(),
         };
         _db.Providers.Add(provider);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var exception = await Record.ExceptionAsync(() => _orchestrator.ExecuteAsync());
+        var exception = await Record.ExceptionAsync(() => _orchestrator.ExecuteAsync(cancellationToken));
 
         // Assert
         Assert.Null(exception);
-        Assert.Empty(await _db.Accounts.ToListAsync());
+        Assert.Empty(await _db.Accounts.ToListAsync(cancellationToken));
     }
 
     [Fact]
@@ -68,9 +70,10 @@ public class SyncOrchestratorTests : IDisposable
     {
         // Arrange
         var nonExistentId = Id.New();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var found = await _orchestrator.ExecuteForProviderAsync(nonExistentId);
+        var found = await _orchestrator.ExecuteForProviderAsync(nonExistentId, cancellationToken);
 
         // Assert
         Assert.False(found);

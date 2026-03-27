@@ -29,6 +29,7 @@ public class ReportsServiceTests : IDisposable
     public async Task GetStatsReportAsync_WithSeededData_ReturnsCorrectCounts()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var faker = new Faker();
 
         var provider = new Provider
@@ -94,7 +95,7 @@ public class ReportsServiceTests : IDisposable
         };
         _db.Transactions.Add(transaction);
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(cancellationToken);
 
         var service = new ReportsService(_db);
 
@@ -131,6 +132,7 @@ public class ReportsServiceTests : IDisposable
     public async Task GetStatsReportAsync_WithProviderButNoData_ReturnsNullDates()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var faker = new Faker();
         var provider = new Provider
         {
@@ -139,7 +141,7 @@ public class ReportsServiceTests : IDisposable
             Name = faker.Company.CompanyName(),
         };
         _db.Providers.Add(provider);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(cancellationToken);
 
         var service = new ReportsService(_db);
 

@@ -11,6 +11,7 @@ alwaysApply: false
 - Integration tests for controllers should inherit `BaseControllerTests` in order to set up and make requests to the API.
 - One assertion theme per test (avoid multiple unrelated behaviors in one test).
 - Class-oriented tests: unit tests should have one test class per tested class.
+- Avoid xUnit1051 warning: for async method calls in tests, use `TestContext.Current.CancellationToken` as the cancellation token parameter when possible.
 
 ## Test Naming Convention
 - Pattern: `MethodName_Scenario_ExpectedResult`

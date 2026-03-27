@@ -12,9 +12,10 @@ public class SyncControllerTests : BaseControllerTests
     public async Task SyncAll_EmptyProviders_ReturnsOk()
     {
         // Arrange (empty DB)
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var response = await Client.PostAsync("/v1/sync", null);
+        var response = await Client.PostAsync("/v1/sync", null, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -25,9 +26,10 @@ public class SyncControllerTests : BaseControllerTests
     {
         // Arrange
         var nonExistentId = Id.New();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var response = await Client.PostAsync($"/v1/sync/{nonExistentId}", null);
+        var response = await Client.PostAsync($"/v1/sync/{nonExistentId}", null, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -37,6 +39,7 @@ public class SyncControllerTests : BaseControllerTests
     public async Task SyncProvider_ExistingNonOrganizzeProvider_ReturnsOk()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider
         {
             Id = Id.New(),
@@ -44,10 +47,10 @@ public class SyncControllerTests : BaseControllerTests
             Name = _faker.Company.CompanyName(),
         };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.PostAsync($"/v1/sync/{provider.Id}", null);
+        var response = await Client.PostAsync($"/v1/sync/{provider.Id}", null, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

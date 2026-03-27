@@ -17,13 +17,14 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task GetAll_EmptyDb_ReturnsEmptyList()
     {
         // Arrange (empty DB)
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var response = await Client.GetAsync("/v1/providers");
+        var response = await Client.GetAsync("/v1/providers", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var providers = await response.Content.ReadFromJsonAsync<List<ProviderDto>>(JsonOptions);
+        var providers = await response.Content.ReadFromJsonAsync<List<ProviderDto>>(JsonOptions, cancellationToken);
         Assert.NotNull(providers);
         Assert.Empty(providers);
     }
@@ -32,6 +33,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task GetAll_WithProviders_ReturnsAll()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider1ApiKey = _faker.Random.AlphaNumeric(24);
         var provider2Email = _faker.Internet.Email();
         var provider1 = new Provider
@@ -49,14 +51,14 @@ public class ProvidersControllerTests : BaseControllerTests
             Metadata = new Dictionary<string, string> { ["email"] = provider2Email },
         };
         Db.Providers.AddRange(provider1, provider2);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.GetAsync("/v1/providers");
+        var response = await Client.GetAsync("/v1/providers", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var providers = await response.Content.ReadFromJsonAsync<List<ProviderDto>>(JsonOptions);
+        var providers = await response.Content.ReadFromJsonAsync<List<ProviderDto>>(JsonOptions, cancellationToken);
         Assert.NotNull(providers);
         Assert.Equal(2, providers.Count);
         Assert.Equal(MaskedSecretValue, providers.Single(p => p.Id == provider1.Id).Metadata?["apiKey"]);
@@ -67,6 +69,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Get_ExistingProvider_ReturnsProvider()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var apiKey = _faker.Random.AlphaNumeric(32);
         var provider = new Provider
         {
@@ -76,14 +79,14 @@ public class ProvidersControllerTests : BaseControllerTests
             Metadata = new Dictionary<string, string> { ["apiKey"] = apiKey },
         };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.GetAsync($"/v1/providers/{provider.Id}");
+        var response = await Client.GetAsync($"/v1/providers/{provider.Id}", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var dto = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        var dto = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions, cancellationToken);
         Assert.NotNull(dto);
         Assert.Equal(provider.Id, dto.Id);
         Assert.Equal(provider.Name, dto.Name);
@@ -96,9 +99,10 @@ public class ProvidersControllerTests : BaseControllerTests
     {
         // Arrange
         var nonExistentId = Id.New();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var response = await Client.GetAsync($"/v1/providers/{nonExistentId}");
+        var response = await Client.GetAsync($"/v1/providers/{nonExistentId}", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -108,6 +112,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Create_ValidProvider_ReturnsCreated()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var email = _faker.Internet.Email();
         var apiKey = _faker.Random.AlphaNumeric(32);
         var dto = new ProviderDto
@@ -123,13 +128,13 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
 
-        var created = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        var created = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions, cancellationToken);
         Assert.NotNull(created);
         Assert.NotEqual(string.Empty, created.Id);
         Assert.Equal(dto.Name, created.Name);
@@ -138,14 +143,14 @@ public class ProvidersControllerTests : BaseControllerTests
         Assert.Equal(MaskedSecretValue, created.Metadata?["apiKey"]);
 
         Db.ChangeTracker.Clear();
-        var persisted = await Db.Providers.FindAsync(created.Id);
+        var persisted = await Db.Providers.FindAsync([created.Id], cancellationToken);
         Assert.NotNull(persisted);
         Assert.Equal(email, persisted.Metadata?["email"]);
         Assert.Equal(apiKey, persisted.Metadata?["apiKey"]);
 
-        var getResponse = await Client.GetAsync($"/v1/providers/{created.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{created.Id}", cancellationToken);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions, cancellationToken);
         Assert.NotNull(fetched);
         Assert.Equal(created.Id, fetched.Id);
         Assert.Equal(dto.Name, fetched.Name);
@@ -158,6 +163,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Create_EmptyName_ReturnsBadRequest()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var dto = new ProviderDto
         {
             Id = string.Empty,
@@ -166,7 +172,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -176,6 +182,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Create_UnknownType_ReturnsBadRequest()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var dto = new ProviderDto
         {
             Id = string.Empty,
@@ -184,7 +191,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions);
+        var response = await Client.PostAsJsonAsync("/v1/providers", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -194,9 +201,10 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Update_ExistingProvider_ReturnsUpdated()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         var updatedName = _faker.Company.CompanyName();
         var email = _faker.Internet.Email();
@@ -210,25 +218,25 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", updateDto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", updateDto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var updated = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        var updated = await response.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions, cancellationToken);
         Assert.NotNull(updated);
         Assert.Equal(updatedName, updated.Name);
         Assert.Equal(MaskedSecretValue, updated.Metadata?["email"]);
         Assert.Equal(MaskedSecretValue, updated.Metadata?["apiKey"]);
 
         Db.ChangeTracker.Clear();
-        var persisted = await Db.Providers.FindAsync(provider.Id);
+        var persisted = await Db.Providers.FindAsync([provider.Id], cancellationToken);
         Assert.NotNull(persisted);
         Assert.Equal(email, persisted.Metadata?["email"]);
         Assert.Equal(apiKey, persisted.Metadata?["apiKey"]);
 
-        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}", cancellationToken);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<ProviderDto>(JsonOptions, cancellationToken);
         Assert.NotNull(fetched);
         Assert.Equal(provider.Id, fetched.Id);
         Assert.Equal(updatedName, fetched.Name);
@@ -241,9 +249,10 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Update_EmptyName_ReturnsBadRequest()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         var dto = new ProviderDto
         {
@@ -253,7 +262,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -263,6 +272,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Update_NonExistentProvider_ReturnsNotFound()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var nonExistentId = Id.New();
         var dto = new ProviderDto
         {
@@ -272,7 +282,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/v1/providers/{nonExistentId}", dto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{nonExistentId}", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -282,9 +292,10 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Update_UnknownType_ReturnsBadRequest()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         var dto = new ProviderDto
         {
@@ -294,7 +305,7 @@ public class ProvidersControllerTests : BaseControllerTests
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions);
+        var response = await Client.PutAsJsonAsync($"/v1/providers/{provider.Id}", dto, JsonOptions, cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -304,21 +315,22 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Delete_ExistingProvider_ReturnsNoContent()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider { Id = Id.New(), Type = ProviderType.Organizze, Name = _faker.Company.CompanyName() };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.DeleteAsync($"/v1/providers/{provider.Id}");
+        var response = await Client.DeleteAsync($"/v1/providers/{provider.Id}", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         Db.ChangeTracker.Clear();
-        var deleted = await Db.Providers.FindAsync(provider.Id);
+        var deleted = await Db.Providers.FindAsync([provider.Id], cancellationToken);
         Assert.Null(deleted);
 
-        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}");
+        var getResponse = await Client.GetAsync($"/v1/providers/{provider.Id}", cancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
@@ -327,9 +339,10 @@ public class ProvidersControllerTests : BaseControllerTests
     {
         // Arrange
         var nonExistentId = Id.New();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
-        var response = await Client.DeleteAsync($"/v1/providers/{nonExistentId}");
+        var response = await Client.DeleteAsync($"/v1/providers/{nonExistentId}", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -339,7 +352,8 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Validate_UnknownType_ReturnsNotFound()
     {
         // Arrange & Act
-        var response = await Client.GetAsync("/v1/providers/unknown/validate");
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var response = await Client.GetAsync("/v1/providers/unknown/validate", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -349,6 +363,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Validate_FullySetUpProvider_ReturnsIsFullySetUpTrue()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider
         {
             Id = Id.New(),
@@ -361,14 +376,14 @@ public class ProvidersControllerTests : BaseControllerTests
             },
         };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.GetAsync("/v1/providers/organizze/validate");
+        var response = await Client.GetAsync("/v1/providers/organizze/validate", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<ProviderValidateResultDto>(JsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<ProviderValidateResultDto>(JsonOptions, cancellationToken);
         Assert.NotNull(result);
         Assert.True(result.IsFullySetUp);
         Assert.Contains(provider.Id, result.Providers.Keys);
@@ -380,6 +395,7 @@ public class ProvidersControllerTests : BaseControllerTests
     public async Task Validate_MissingMetadata_ReturnsIsFullySetUpFalse()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         var provider = new Provider
         {
             Id = Id.New(),
@@ -388,14 +404,14 @@ public class ProvidersControllerTests : BaseControllerTests
             Metadata = new Dictionary<string, string>(),
         };
         Db.Providers.Add(provider);
-        await Db.SaveChangesAsync();
+        await Db.SaveChangesAsync(cancellationToken);
 
         // Act
-        var response = await Client.GetAsync("/v1/providers/organizze/validate");
+        var response = await Client.GetAsync("/v1/providers/organizze/validate", cancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<ProviderValidateResultDto>(JsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<ProviderValidateResultDto>(JsonOptions, cancellationToken);
         Assert.NotNull(result);
         Assert.False(result.IsFullySetUp);
         Assert.Contains(provider.Id, result.Providers.Keys);
