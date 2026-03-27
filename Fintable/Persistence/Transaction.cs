@@ -14,10 +14,10 @@ public class Transaction
     public bool Recurring { get; set; }
     public required string AccountId { get; set; }
     public TransactionAccountType AccountType { get; set; }
-    public required string CategoryId { get; set; }
+    public string? CategoryId { get; set; }
+    public string? InvoiceId { get; set; }
     public required string ExternalId { get; set; }
 
-    public Account? Account { get; set; }
-    public CreditCard? CreditCard { get; set; }
     public Category? Category { get; set; }
+    public Invoice? Invoice { get; set; }
 }

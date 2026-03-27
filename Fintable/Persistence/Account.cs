@@ -8,5 +8,4 @@ public class Account
     public required string ExternalId { get; set; }
 
     public Provider? Provider { get; set; }
-    public ICollection<Transaction> Transactions { get; set; } = [];
 }

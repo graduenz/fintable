@@ -24,7 +24,7 @@ public class OrganizzeSyncService
         var categoriesMap = await SyncCategoriesAsync(provider, cancellationToken);
         var creditCardsMap = await SyncCreditCardsAsync(provider, cancellationToken);
         var invoicesMap = await SyncInvoicesAsync(provider, creditCardsMap, cancellationToken);
-        await SyncTransactionsAsync(provider, accountsMap, categoriesMap, cancellationToken);
+        await SyncTransactionsAsync(provider, accountsMap, categoriesMap, creditCardsMap, invoicesMap, cancellationToken);
     }
 
     private async Task<Dictionary<string, string>> SyncAccountsAsync(Provider provider, CancellationToken cancellationToken)
@@ -211,12 +211,17 @@ public class OrganizzeSyncService
         Provider provider,
         Dictionary<string, string> accountsMap,
         Dictionary<string, string> categoriesMap,
+        Dictionary<string, string> creditCardsMap,
+        Dictionary<string, string> invoicesMap,
         CancellationToken cancellationToken)
     {
         var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
 
+        var providerAccountIds = accountsMap.Values.ToHashSet();
+        var providerCreditCardIds = creditCardsMap.Values.ToHashSet();
+
         var existing = await _db.Transactions
-            .Where(t => (t.Account != null && t.Account.ProviderId == provider.Id) || (t.CreditCard != null && t.CreditCard.ProviderId == provider.Id))
+            .Where(t => providerAccountIds.Contains(t.AccountId) || providerCreditCardIds.Contains(t.AccountId))
             .ToListAsync(cancellationToken);
 
         var byExternalId = existing.ToDictionary(t => t.ExternalId, t => t);
@@ -234,14 +239,26 @@ public class OrganizzeSyncService
                 var externalId = remote.Id.ToString();
                 var accountExternalId = remote.AccountId.ToString();
 
+                var accountType = Fintable.Models.TransactionAccountType.Account;
                 if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
                 {
-                    // If we do not know the account, skip this transaction for now.
-                    continue;
+                    if (creditCardsMap.TryGetValue(accountExternalId, out var localCreditCardId))
+                    {
+                        localAccountId = localCreditCardId;
+                        accountType = Fintable.Models.TransactionAccountType.CreditCard;
+                    }
+                    else
+                    {
+                        // If we do not know the account, skip this transaction for now.
+                        continue;
+                    }
                 }
 
-                // TODO: Map category when Organizze exposes it consistently.
-                categoriesMap.TryGetValue(string.Empty, out var localCategoryId);
+                var remoteCategoryKey = remote.CategoryId > 0 ? remote.CategoryId.ToString() : null;
+                var localCategoryId = remoteCategoryKey is not null && categoriesMap.TryGetValue(remoteCategoryKey, out var mappedId)
+                    ? mappedId
+                    : null;
+                var localInvoiceId = ResolveLocalInvoiceId(remote, invoicesMap);
 
                 if (byExternalId.TryGetValue(externalId, out var transaction))
                 {
@@ -253,11 +270,9 @@ public class OrganizzeSyncService
                     transaction.Installment = remote.Installment;
                     transaction.Recurring = remote.Recurring;
                     transaction.AccountId = localAccountId;
-                    transaction.AccountType = Fintable.Models.TransactionAccountType.Account;
-                    if (localCategoryId is not null)
-                    {
-                        transaction.CategoryId = localCategoryId;
-                    }
+                    transaction.AccountType = accountType;
+                    transaction.CategoryId = localCategoryId;
+                    transaction.InvoiceId = localInvoiceId;
 
                     continue;
                 }
@@ -274,8 +289,9 @@ public class OrganizzeSyncService
                     Installment = remote.Installment,
                     Recurring = remote.Recurring,
                     AccountId = localAccountId,
-                    AccountType = Fintable.Models.TransactionAccountType.Account,
-                    CategoryId = localCategoryId ?? string.Empty,
+                    AccountType = accountType,
+                    CategoryId = localCategoryId,
+                    InvoiceId = localInvoiceId,
                 };
 
                 _db.Transactions.Add(newTransaction);
@@ -284,5 +300,22 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    internal static string? ResolveLocalInvoiceId(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        IReadOnlyDictionary<string, string> invoicesMap)
+    {
+        var externalInvoiceId = remoteTransaction.PaidCreditCardInvoiceId
+            ?? remoteTransaction.CreditCardInvoiceId;
+
+        if (externalInvoiceId is null || externalInvoiceId <= 0)
+        {
+            return null;
+        }
+
+        return invoicesMap.TryGetValue(externalInvoiceId.Value.ToString(), out var localInvoiceId)
+            ? localInvoiceId
+            : null;
     }
 }

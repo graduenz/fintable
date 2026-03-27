@@ -10,4 +10,5 @@ public class Invoice
     public required string ExternalId { get; set; }
 
     public CreditCard? CreditCard { get; set; }
+    public ICollection<Transaction> Transactions { get; set; } = [];
 }

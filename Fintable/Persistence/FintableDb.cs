@@ -92,21 +92,19 @@ public class FintableDb(DbContextOptions<FintableDb> options) : DbContext(option
             entity.HasOne(e => e.Category)
                 .WithMany(c => c.Transactions)
                 .HasForeignKey(e => e.CategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Account)
-                .WithMany(a => a.Transactions)
-                .HasForeignKey(e => e.AccountId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired(false);
 
-            entity.HasOne(e => e.CreditCard)
-                .WithMany(c => c.Transactions)
-                .HasForeignKey(e => e.AccountId)
-                .OnDelete(DeleteBehavior.Restrict)
+            entity.HasOne(e => e.Invoice)
+                .WithMany(i => i.Transactions)
+                .HasForeignKey(e => e.InvoiceId)
+                .OnDelete(DeleteBehavior.SetNull)
                 .IsRequired(false);
 
+            // AccountId is a loose field that can reference either an Account or a CreditCard
+            // depending on AccountType; no FK constraint is enforced at the DB level.
             entity.HasIndex(e => new { e.AccountId, e.AccountType });
+            entity.HasIndex(e => e.InvoiceId);
         });
     }
 }

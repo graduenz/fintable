@@ -23,7 +23,6 @@ public class ReportsServiceTests : IDisposable
 
         _db = new FintableDb(options);
         _db.Database.EnsureCreated();
-        _db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF;");
     }
 
     [Fact]
