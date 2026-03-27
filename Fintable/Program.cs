@@ -31,14 +31,21 @@ builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-builder.Services.AddApiVersioning(opt =>
-{
-    opt.DefaultApiVersion = new ApiVersion(1, 0);
-    opt.AssumeDefaultVersionWhenUnspecified = true;
-    opt.ReportApiVersions = true;
-}).AddMvc();
+builder.Services
+    .AddApiVersioning(opt =>
+    {
+        opt.DefaultApiVersion = new ApiVersion(1, 0);
+        opt.AssumeDefaultVersionWhenUnspecified = true;
+        opt.ReportApiVersions = true;
+    })
+    .AddMvc()
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi("v1");
 
 var app = builder.Build();
 
@@ -50,8 +57,9 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi("/openapi/{documentName}.json");
+    app.MapScalarApiReference(options =>
+        options.OpenApiRoutePattern = "/openapi/{documentName}.json");
 }
 
 app.UseExceptionHandler();
