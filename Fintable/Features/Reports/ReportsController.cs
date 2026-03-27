@@ -17,7 +17,7 @@ namespace Fintable.Features.Reports
         [HttpGet("fintable")]
         public async Task<IActionResult> Fintable([FromQuery] int? year)
         {
-            var resolvedYear = year ?? DateTime.Now.Year;
+            var resolvedYear = year ?? DateTime.UtcNow.Year;
             return Ok(await service.GetFintableReportAsync(resolvedYear));
         }
     }
