@@ -39,8 +39,20 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - Provider metadata is stored as `Dictionary<string,string>` serialized to JSON using an EF Core ValueConverter (stored as TEXT in SQLite).
 - Provider metadata is used to store provider-specific configurations, such as user email and API key to make requests to the provider's APIs.
 
+### Organizze and NOrganizze
+
+In order to understand the NOrganizze documentation and types, you can use the following GitHub repositories:
+- https://github.com/graduenz/norganizze → contains the NOrganizze source code and documentation.
+- https://github.com/organizze/api-doc → contains the actual Organizze API documentation.
+
+You can even ask me to make changes in the NOrganizze project, since it's from the same author.
+
 ## Structure (under Fintable project)
 - `/Features` → vertical-sliced feature implementations.
 - `/Models` → general models for the application, that are not exclusively persistence models.
 - `/Persistence` → Entity Framework related artifacts, such as DB models and database context implementation.
 - `/Organizze` → artifacts to work with the Organizze provider.
+
+## Breaking changes
+
+For every breaking change that doesn't impact an API surface, such as changing the database schema or a behavior, you don't need to worry about a migration plan or anything like that; instead, you can just ask me to delete the database and resync the data.
