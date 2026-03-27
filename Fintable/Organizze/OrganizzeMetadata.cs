@@ -8,7 +8,7 @@ public class OrganizzeMetadata
     public required string ApiKey { get; set; }
 
     public static OrganizzeMetadata FromJson(string json) =>
-        JsonSerializer.Deserialize<OrganizzeMetadata>(json, (JsonSerializerOptions?)null)
+        JsonSerializer.Deserialize<OrganizzeMetadata>(json, JsonSerializerOptions.Web)
             ?? throw new InvalidOperationException("Failed to deserialize Organizze metadata.");
 
     public NOrganizze.Credentials ToCredentials() => new(Email, ApiKey);
