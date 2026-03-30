@@ -20,5 +20,14 @@ namespace Fintable.Features.Reports
             var resolvedYear = year ?? DateTime.UtcNow.Year;
             return Ok(await service.GetFintableReportAsync(resolvedYear));
         }
+
+        [HttpGet("fintable/pdf")]
+        public async Task<IActionResult> FintablePdf([FromQuery] int? year)
+        {
+            var resolvedYear = year ?? DateTime.UtcNow.Year;
+            var report = await service.GetFintableReportAsync(resolvedYear);
+            var pdf = FintableReportPdfGenerator.Generate(report);
+            return File(pdf, "application/pdf", $"fintable-{resolvedYear}.pdf");
+        }
     }
 }

@@ -5,7 +5,10 @@ using Fintable.Persistence;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
