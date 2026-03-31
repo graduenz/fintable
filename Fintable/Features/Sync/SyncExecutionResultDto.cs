@@ -12,6 +12,11 @@ public class SyncWarningGroupDto
     public required SyncWarningSeverity Severity { get; set; }
     public int Count { get; set; }
     public List<string> Warnings { get; set; } = [];
+
+    public override string ToString()
+    {
+        return $"[{Code}] [Severity: {Severity}] [Count: {Count}]";
+    }
 }
 
 public enum SyncProviderOutcome
@@ -26,12 +31,22 @@ public class SyncedProviderDto
     public required string Name { get; set; }
     public required string Type { get; set; }
     public required SyncProviderOutcome Outcome { get; set; }
+
+    public override string ToString()
+    {
+        return $"[{Outcome}] [{Type}] [{Name}] [Id: {Id}]";
+    }
 }
 
 public class SyncExecutionResultDto
 {
     public List<SyncedProviderDto> SyncedProviders { get; set; } = [];
     public List<SyncWarningGroupDto> WarningGroups { get; set; } = [];
+
+    public override string ToString()
+    {
+        return $"[SyncedProviders: {SyncedProviders.Count}] [WarningGroups: {WarningGroups.Count}]";
+    }
 }
 
 public sealed class SyncWarningCollector : IDisposable
