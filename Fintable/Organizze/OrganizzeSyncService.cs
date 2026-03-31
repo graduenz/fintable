@@ -8,6 +8,8 @@ namespace Fintable.Organizze;
 
 public class OrganizzeSyncService
 {
+    internal const int TransactionFetchCap = 500;
+
     private readonly FintableDb _db;
     private readonly NOrganizze.NOrganizzeClient _client;
     private readonly SyncWindowOptions _windowOptions;
@@ -350,17 +352,11 @@ public class OrganizzeSyncService
                 start,
                 end);
 
-            var remoteTransactions = await _client.Transactions.ListAsync(
-                new NOrganizze.Transactions.TransactionListOptions
-                {
-                    StartDate = start,
-                    EndDate = end,
-                },
-                cancellationToken: cancellationToken);
+            var remoteTransactions = await FetchTransactionsByDateCursorAsync(start, end, collector, cancellationToken);
+            fetchedTransactionsCount += remoteTransactions.Count;
 
             foreach (var remote in remoteTransactions)
             {
-                fetchedTransactionsCount++;
                 var externalId = remote.Id.ToString();
                 var accountExternalId = remote.AccountId.ToString();
 
@@ -456,6 +452,87 @@ public class OrganizzeSyncService
                 SyncWarningCodes.SyncDataConsistencyRisk,
                 "All fetched transactions were skipped due to unmapped accounts. Local sync can be incomplete.");
         }
+    }
+
+    internal async Task<List<NOrganizze.Transactions.Transaction>> FetchTransactionsByDateCursorAsync(
+        DateTime start,
+        DateTime end,
+        SyncWarningCollector collector,
+        CancellationToken cancellationToken)
+    {
+        var allFetched = new List<NOrganizze.Transactions.Transaction>();
+        var currentStart = start;
+
+        while (currentStart <= end)
+        {
+            var chunk = await _client.Transactions.ListAsync(
+                new NOrganizze.Transactions.TransactionListOptions
+                {
+                    StartDate = currentStart,
+                    EndDate = end,
+                },
+                cancellationToken: cancellationToken);
+
+            allFetched.AddRange(chunk);
+
+            if (chunk.Count < TransactionFetchCap)
+            {
+                break;
+            }
+
+            collector.ReportWarning(
+                SyncWarningCodes.TransactionFetchCapDetected,
+                $"Transaction fetch reached {chunk.Count} items for {currentStart:yyyy-MM-dd}..{end:yyyy-MM-dd}; continuing from latest fetched date.");
+
+            var latestDate = GetLatestTransactionDate(chunk);
+            if (!TryGetNextCursorStart(currentStart, latestDate, out var nextStart))
+            {
+                collector.ReportCritical(
+                    SyncWarningCodes.TransactionFetchCursorStalled,
+                    $"Transaction fetch cursor stalled at {currentStart:yyyy-MM-dd}..{end:yyyy-MM-dd}; unable to advance range safely.");
+                break;
+            }
+
+            currentStart = nextStart;
+        }
+
+        return DeduplicateTransactionsByExternalId(allFetched);
+    }
+
+    internal static DateTime? GetLatestTransactionDate(IEnumerable<NOrganizze.Transactions.Transaction> transactions)
+    {
+        var dates = transactions.Select(transaction => transaction.Date).ToList();
+        return dates.Count == 0 ? null : dates.Max();
+    }
+
+    internal static List<NOrganizze.Transactions.Transaction> DeduplicateTransactionsByExternalId(
+        IEnumerable<NOrganizze.Transactions.Transaction> transactions)
+    {
+        var dedup = new Dictionary<long, NOrganizze.Transactions.Transaction>();
+        foreach (var transaction in transactions)
+        {
+            dedup[transaction.Id] = transaction;
+        }
+
+        return dedup.Values.ToList();
+    }
+
+    internal static bool TryGetNextCursorStart(DateTime currentStart, DateTime? latestDate, out DateTime nextStart)
+    {
+        if (latestDate is null)
+        {
+            nextStart = default;
+            return false;
+        }
+
+        nextStart = latestDate.Value.Date.AddDays(1);
+        if (nextStart <= currentStart.Date)
+        {
+            nextStart = default;
+            return false;
+        }
+
+        return true;
     }
 
     private static void ApplyCategoryKindInference(

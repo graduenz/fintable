@@ -4,6 +4,8 @@ public static class SyncWarningCodes
 {
     public const string NoProvidersToSync = "no_providers_to_sync";
     public const string ProviderTypeNotSupportedSkipped = "provider_type_not_supported_skipped";
+    public const string TransactionFetchCapDetected = "transaction_fetch_cap_detected";
+    public const string TransactionFetchCursorStalled = "transaction_fetch_cursor_stalled";
     public const string TransactionUnknownAccountSkipped = "transaction_unknown_account_skipped";
     public const string CategoryMappingMissing = "category_mapping_missing";
     public const string InvoiceMappingMissing = "invoice_mapping_missing";

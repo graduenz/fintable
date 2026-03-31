@@ -5,13 +5,21 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Fintable.Tests.Features.Sync;
 
 public class SyncControllerTests : BaseControllerTests
 {
     private readonly Faker _faker = new();
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
 
     [Fact]
     public async Task SyncAll_EmptyProviders_ReturnsOk()
