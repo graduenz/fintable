@@ -3,6 +3,7 @@ using Fintable.Features.Sync;
 using Fintable.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Fintable.Tests.Features.Sync;
@@ -26,7 +27,11 @@ public class SyncOrchestratorTests : IDisposable
         _db.Database.EnsureCreated();
 
         var syncOptions = Options.Create(new SyncWindowOptions());
-        _orchestrator = new SyncOrchestrator(_db, syncOptions);
+        _orchestrator = new SyncOrchestrator(
+            _db,
+            syncOptions,
+            NullLogger<SyncOrchestrator>.Instance,
+            NullLogger<Fintable.Organizze.OrganizzeSyncService>.Instance);
     }
 
     [Fact]
