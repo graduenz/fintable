@@ -54,3 +54,13 @@ alwaysApply: false
 - Treat a change as incomplete until both commands succeed.
 - If tests fail, fix the root cause and re-run `dotnet build` and `dotnet test` until green.
 - For bug fixes and refactors, prefer running the full suite (`dotnet test`) instead of only targeted tests before finalizing.
+
+## Local Coverage Workflow
+- Before opening/merging a PR, run local coverage to inspect missed branches and lines:
+  - `powershell -ExecutionPolicy Bypass -File ./scripts/test-coverage.ps1`
+- The coverage workflow generates:
+  - OpenCover XML at `artifacts/coverage/coverage.opencover.xml` (tooling-compatible).
+  - HTML report at `artifacts/coverage-report/index.html` (human-friendly inspection).
+- Use the HTML report to prioritize future tests:
+  - Focus first on low-coverage services/controllers touched by recent changes.
+  - Prefer adding branch-focused tests for condition-heavy methods over broad, low-assertion tests.
