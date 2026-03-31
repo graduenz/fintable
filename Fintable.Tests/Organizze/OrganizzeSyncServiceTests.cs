@@ -96,6 +96,38 @@ public class OrganizzeSyncServiceTests
     }
 
     [Fact]
+    public void TryGetExternalInvoiceId_RemoteTransactionHasInvoiceLink_ReturnsTrueAndExternalInvoiceId()
+    {
+        // Arrange
+        var externalInvoiceId = _faker.Random.Long(1000, 9999);
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            PaidCreditCardInvoiceId = externalInvoiceId,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.True(found);
+        Assert.Equal(externalInvoiceId, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_RemoteTransactionHasNoInvoiceLink_ReturnsFalse()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction();
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.False(found);
+        Assert.Equal(default, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
     public void AssignCategoryParentsFromRemote_ChildReferencesParent_SetsParentIdToLocalParent()
     {
         // Arrange

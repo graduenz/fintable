@@ -25,7 +25,10 @@ public class OrganizzeSyncService
         _logger = logger;
     }
 
-    public async Task SyncAsync(Provider provider, CancellationToken cancellationToken = default)
+    public async Task SyncAsync(
+        Provider provider,
+        SyncWarningCollector collector,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "Starting Organizze sync for provider {ProviderId} ({ProviderName}).",
@@ -37,7 +40,7 @@ public class OrganizzeSyncService
         var categoriesMap = await SyncCategoriesAsync(provider, cancellationToken);
         var creditCardsMap = await SyncCreditCardsAsync(provider, cancellationToken);
         var invoicesMap = await SyncInvoicesAsync(creditCardsMap, cancellationToken);
-        await SyncTransactionsAsync(accountsMap, categoriesMap, creditCardsMap, invoicesMap, cancellationToken);
+        await SyncTransactionsAsync(accountsMap, categoriesMap, creditCardsMap, invoicesMap, collector, cancellationToken);
 
         _logger.LogInformation(
             "Finished Organizze sync for provider {ProviderId} ({ProviderName}). Synced Accounts={AccountsCount}, Categories={CategoriesCount}, CreditCards={CreditCardsCount}, Invoices={InvoicesCount}.",
@@ -309,6 +312,7 @@ public class OrganizzeSyncService
         Dictionary<string, string> categoriesMap,
         Dictionary<string, string> creditCardsMap,
         Dictionary<string, string> invoicesMap,
+        SyncWarningCollector collector,
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
@@ -372,6 +376,9 @@ public class OrganizzeSyncService
                     {
                         // If we do not know the account, skip this transaction for now.
                         skippedUnknownAccountCount++;
+                        collector.ReportWarning(
+                            SyncWarningCodes.TransactionUnknownAccountSkipped,
+                            $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} skipped because account {accountExternalId} is not mapped locally.");
                         continue;
                     }
                 }
@@ -380,7 +387,20 @@ public class OrganizzeSyncService
                 var localCategoryId = remoteCategoryKey is not null && categoriesMap.TryGetValue(remoteCategoryKey, out var mappedId)
                     ? mappedId
                     : null;
+                if (remoteCategoryKey is not null && localCategoryId is null)
+                {
+                    collector.ReportWarning(
+                        SyncWarningCodes.CategoryMappingMissing,
+                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references category {remoteCategoryKey} with no local mapping.");
+                }
+
                 var localInvoiceId = ResolveLocalInvoiceId(remote, invoicesMap);
+                if (TryGetExternalInvoiceId(remote, out var externalInvoiceId) && localInvoiceId is null)
+                {
+                    collector.ReportWarning(
+                        SyncWarningCodes.InvoiceMappingMissing,
+                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references invoice {externalInvoiceId} with no local mapping.");
+                }
                 ApplyCategoryKindInference(localCategoryId, remote.AmountCents, categoriesById);
 
                 if (byExternalId.TryGetValue(externalId, out var transaction))
@@ -429,6 +449,13 @@ public class OrganizzeSyncService
             byExternalId.Count,
             skippedUnknownAccountCount,
             yearRanges.Count);
+
+        if (fetchedTransactionsCount > 0 && skippedUnknownAccountCount == fetchedTransactionsCount)
+        {
+            collector.ReportCritical(
+                SyncWarningCodes.SyncDataConsistencyRisk,
+                "All fetched transactions were skipped due to unmapped accounts. Local sync can be incomplete.");
+        }
     }
 
     private static void ApplyCategoryKindInference(
@@ -478,16 +505,30 @@ public class OrganizzeSyncService
         NOrganizze.Transactions.Transaction remoteTransaction,
         IReadOnlyDictionary<string, string> invoicesMap)
     {
-        var externalInvoiceId = remoteTransaction.PaidCreditCardInvoiceId
-            ?? remoteTransaction.CreditCardInvoiceId;
-
-        if (externalInvoiceId is null || externalInvoiceId <= 0)
+        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId))
         {
             return null;
         }
 
-        return invoicesMap.TryGetValue(externalInvoiceId.Value.ToString(), out var localInvoiceId)
+        return invoicesMap.TryGetValue(externalInvoiceId.ToString(), out var localInvoiceId)
             ? localInvoiceId
             : null;
+    }
+
+    internal static bool TryGetExternalInvoiceId(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        out long externalInvoiceId)
+    {
+        var externalInvoiceIdNullable = remoteTransaction.PaidCreditCardInvoiceId
+            ?? remoteTransaction.CreditCardInvoiceId;
+
+        if (externalInvoiceIdNullable is null || externalInvoiceIdNullable <= 0)
+        {
+            externalInvoiceId = default;
+            return false;
+        }
+
+        externalInvoiceId = externalInvoiceIdNullable.Value;
+        return true;
     }
 }
