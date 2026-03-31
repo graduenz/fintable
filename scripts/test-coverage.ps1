@@ -16,7 +16,7 @@ if (Test-Path $testResultsRoot) {
 }
 
 Write-Host "Running tests with OpenCover output..."
-dotnet test (Join-Path $repoRoot "Fintable.slnx") --configuration $Configuration --results-directory $testResultsRoot --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+dotnet test (Join-Path $repoRoot "Fintable.slnx") --configuration $Configuration --results-directory $testResultsRoot --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/obj/**"
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet test failed with exit code $LASTEXITCODE."
 }

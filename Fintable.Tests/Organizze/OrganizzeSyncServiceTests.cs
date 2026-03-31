@@ -211,6 +211,55 @@ public class OrganizzeSyncServiceTests
     }
 
     [Fact]
+    public void TryGetNextCursorStart_LatestDateIsNull_ReturnsFalse()
+    {
+        // Arrange
+        var currentStart = new DateTime(2026, 01, 02);
+
+        // Act
+        var canAdvance = OrganizzeSyncService.TryGetNextCursorStart(currentStart, latestDate: null, out var nextStart);
+
+        // Assert
+        Assert.False(canAdvance);
+        Assert.Equal(default, nextStart);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_OnlyCreditCardInvoiceIdIsZero_ReturnsFalse()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            CreditCardInvoiceId = 0,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.False(found);
+        Assert.Equal(default, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_PaidCreditCardInvoiceIdHasPriorityOverCreditCardInvoiceId()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            PaidCreditCardInvoiceId = 1001,
+            CreditCardInvoiceId = 2002,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.True(found);
+        Assert.Equal(1001, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
     public void AssignCategoryParentsFromRemote_ChildReferencesParent_SetsParentIdToLocalParent()
     {
         // Arrange
