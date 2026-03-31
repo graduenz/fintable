@@ -4,6 +4,7 @@ using Fintable.Persistence;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Fintable.Tests.Features.Sync;
 
@@ -72,5 +73,30 @@ public class SyncControllerTests : BaseControllerTests
         Assert.Single(payload.WarningGroups);
         Assert.Equal(SyncWarningCodes.ProviderTypeNotSupportedSkipped, payload.WarningGroups[0].Code);
         Assert.Equal(1, payload.WarningGroups[0].Count);
+    }
+
+    [Fact]
+    public async Task SyncProvider_ExistingNonOrganizzeProvider_SerializesOutcomeAsEnumText()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var provider = new Provider
+        {
+            Id = Id.New(),
+            Type = "unsupported",
+            Name = _faker.Company.CompanyName(),
+        };
+        Db.Providers.Add(provider);
+        await Db.SaveChangesAsync(cancellationToken);
+
+        // Act
+        var response = await Client.PostAsync($"/v1/sync/{provider.Id}", null, cancellationToken);
+        var rawResponse = await response.Content.ReadAsStringAsync(cancellationToken);
+        var json = JsonNode.Parse(rawResponse);
+        var outcomeText = json?["syncedProviders"]?[0]?["outcome"]?.GetValue<string>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Skipped", outcomeText);
     }
 }

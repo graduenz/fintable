@@ -364,13 +364,13 @@ public class OrganizzeSyncService
                 var externalId = remote.Id.ToString();
                 var accountExternalId = remote.AccountId.ToString();
 
-                var accountType = Fintable.Models.TransactionAccountType.Account;
+                var accountType = TransactionAccountType.Account;
                 if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
                 {
                     if (creditCardsMap.TryGetValue(accountExternalId, out var localCreditCardId))
                     {
                         localAccountId = localCreditCardId;
-                        accountType = Fintable.Models.TransactionAccountType.CreditCard;
+                        accountType = TransactionAccountType.CreditCard;
                     }
                     else
                     {
