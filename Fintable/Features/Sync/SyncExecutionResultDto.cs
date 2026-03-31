@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace Fintable.Features.Sync;
 
 public enum SyncWarningSeverity
@@ -53,18 +51,6 @@ public class SyncExecutionResultDto
 
 public sealed class SyncWarningCollector : IDisposable
 {
-    private static readonly Action<Microsoft.Extensions.Logging.ILogger, int, string, Exception?> LogCriticalSummary =
-        LoggerMessage.Define<int, string>(
-            LogLevel.Critical,
-            new EventId(1, nameof(LogCriticalSummary)),
-            "{CriticalCount} critical issue(s) detected during {Scope}.");
-
-    private static readonly Action<Microsoft.Extensions.Logging.ILogger, int, string, Exception?> LogWarningSummary =
-        LoggerMessage.Define<int, string>(
-            LogLevel.Warning,
-            new EventId(2, nameof(LogWarningSummary)),
-            "{WarningCount} warning issue(s) detected during {Scope}.");
-
     private sealed class SyncIssue
     {
         public required string Code { get; init; }
@@ -132,12 +118,12 @@ public sealed class SyncWarningCollector : IDisposable
 
         if (criticalCount > 0)
         {
-            LogCriticalSummary(_logger, criticalCount, _scope, null);
+            _logger.LogCritical("{CriticalCount} critical issue(s) detected during {Scope}.", criticalCount, _scope);
         }
 
         if (warningCount > 0)
         {
-            LogWarningSummary(_logger, warningCount, _scope, null);
+            _logger.LogWarning("{WarningCount} warning issue(s) detected during {Scope}.", warningCount, _scope);
         }
 
         _summaryLogged = true;
