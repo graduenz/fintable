@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="NOrganizze" />
+    <PackageReference Include="QuestPDF" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Ulid" />
   </ItemGroup>

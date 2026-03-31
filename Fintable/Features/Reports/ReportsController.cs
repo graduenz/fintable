@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Fintable.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fintable.Features.Reports
@@ -16,9 +15,19 @@ namespace Fintable.Features.Reports
         }
 
         [HttpGet("fintable")]
-        public async Task<IActionResult> Fintable()
+        public async Task<IActionResult> Fintable([FromQuery] int? year)
         {
-            throw new NotImplementedException();
+            var resolvedYear = year ?? DateTime.UtcNow.Year;
+            return Ok(await service.GetFintableReportAsync(resolvedYear));
+        }
+
+        [HttpGet("fintable/pdf")]
+        public async Task<IActionResult> FintablePdf([FromQuery] int? year)
+        {
+            var resolvedYear = year ?? DateTime.UtcNow.Year;
+            var report = await service.GetFintableReportAsync(resolvedYear);
+            var pdf = FintableReportPdfGenerator.Generate(report);
+            return File(pdf, "application/pdf", $"fintable-{resolvedYear}.pdf");
         }
     }
 }

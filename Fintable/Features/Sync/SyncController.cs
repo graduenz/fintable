@@ -11,15 +11,15 @@ namespace Fintable.Features.Sync
         [HttpPost]
         public async Task<IActionResult> SyncAll(CancellationToken cancellationToken)
         {
-            await orchestrator.ExecuteAsync(cancellationToken);
-            return Ok();
+            var result = await orchestrator.ExecuteAsync(cancellationToken);
+            return Ok(result);
         }
 
         [HttpPost("{providerId}")]
         public async Task<IActionResult> SyncProvider([FromRoute] string providerId, CancellationToken cancellationToken)
         {
-            var found = await orchestrator.ExecuteForProviderAsync(providerId, cancellationToken);
-            return found ? Ok() : NotFound();
+            var result = await orchestrator.ExecuteForProviderAsync(providerId, cancellationToken);
+            return result is not null ? Ok(result) : NotFound();
         }
     }
 }

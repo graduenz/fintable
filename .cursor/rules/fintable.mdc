@@ -10,17 +10,18 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 ## Architecture
 - The project intentionally favors simplicity and pragmatism.
 - Main concept: Providers → Sync Ochestrator → [... Sync Services → SQLite (EF Core)] → REST API (reports).
+- No DDD layers (no Domain/Application/Infrastructure separation).
 
 ## Backend
 - Single .NET project for the application code.
 - Authentication: no authentication at all.
 - Dependency injection: .NET built-in dependency injection configured at `Program.cs`.
 - Mapping between types should be done using the `Mapster` NuGet package.
-
-## Design Constraints
-- No DDD layers (no Domain/Application/Infrastructure separation).
+- Dates in UTC by default: always prefer using `DateTime.UtcNow` over `DateTime.Now` to get the current date and time.
+- API enum serialization must use enum names (string) instead of numeric values. Keep `System.Text.Json` configured with `JsonStringEnumConverter` in `Program.cs` for controller JSON responses.
 - No repository pattern; operations on top of `FintableDb` are the way to go.
 - DTOs should be received/returned by the APIs, and not the EF entity itself (such as `ProviderDto`).
+- DTOs should include concise `ToString()` overrides for easier debugging and readable logs.
 
 ## Database
 - The database driver is SQLite for simplicity.

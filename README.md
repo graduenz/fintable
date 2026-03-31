@@ -30,6 +30,20 @@ dotnet run --project Fintable/Fintable.csproj
 dotnet test
 ```
 
+### Local Test Coverage
+
+Run local coverage with OpenCover XML and an HTML report:
+
+```bash
+powershell -ExecutionPolicy Bypass -File ./scripts/test-coverage.ps1
+```
+
+Generated artifacts:
+- OpenCover XML: `artifacts/coverage/coverage.opencover.xml`
+- HTML report: `artifacts/coverage-report/index.html`
+
+This local format matches CI coverage collection (`XPlat Code Coverage` + OpenCover), so findings are aligned with pipeline analysis.
+
 The API starts on `http://localhost:5027` (or `https://localhost:7246`). In development, the interactive Scalar UI is available at `http://localhost:5027/scalar`.
 
 ## Configuration

@@ -36,6 +36,19 @@
                 "${workspaceFolder}/Fintable/Fintable.csproj"
             ],
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "test:coverage",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/scripts/test-coverage.ps1"
+            ],
+            "group": "test",
+            "problemMatcher": []
         }
     ]
 }

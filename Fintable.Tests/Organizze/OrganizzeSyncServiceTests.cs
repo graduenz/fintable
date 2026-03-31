@@ -96,6 +96,170 @@ public class OrganizzeSyncServiceTests
     }
 
     [Fact]
+    public void TryGetExternalInvoiceId_RemoteTransactionHasInvoiceLink_ReturnsTrueAndExternalInvoiceId()
+    {
+        // Arrange
+        var externalInvoiceId = _faker.Random.Long(1000, 9999);
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            PaidCreditCardInvoiceId = externalInvoiceId,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.True(found);
+        Assert.Equal(externalInvoiceId, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_RemoteTransactionHasNoInvoiceLink_ReturnsFalse()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction();
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.False(found);
+        Assert.Equal(default, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
+    public void GetLatestTransactionDate_EmptyTransactions_ReturnsNull()
+    {
+        // Arrange
+        var transactions = Array.Empty<OrganizzeTransaction>();
+
+        // Act
+        var latestDate = OrganizzeSyncService.GetLatestTransactionDate(transactions);
+
+        // Assert
+        Assert.Null(latestDate);
+    }
+
+    [Fact]
+    public void GetLatestTransactionDate_MultipleTransactions_ReturnsLatestDate()
+    {
+        // Arrange
+        var earliestDate = new DateTime(2026, 01, 02);
+        var latestDate = new DateTime(2026, 03, 10);
+        var transactions = new[]
+        {
+            new OrganizzeTransaction { Id = 1, Date = earliestDate },
+            new OrganizzeTransaction { Id = 2, Date = latestDate },
+            new OrganizzeTransaction { Id = 3, Date = new DateTime(2026, 02, 01) },
+        };
+
+        // Act
+        var result = OrganizzeSyncService.GetLatestTransactionDate(transactions);
+
+        // Assert
+        Assert.Equal(latestDate, result);
+    }
+
+    [Fact]
+    public void DeduplicateTransactionsByExternalId_DuplicateIds_ReturnsDistinctTransactions()
+    {
+        // Arrange
+        var transactions = new[]
+        {
+            new OrganizzeTransaction { Id = 10, Description = "first" },
+            new OrganizzeTransaction { Id = 11, Description = "single" },
+            new OrganizzeTransaction { Id = 10, Description = "second" },
+        };
+
+        // Act
+        var deduped = OrganizzeSyncService.DeduplicateTransactionsByExternalId(transactions);
+
+        // Assert
+        Assert.Equal(2, deduped.Count);
+        Assert.Contains(deduped, transaction => transaction.Id == 10 && transaction.Description == "second");
+        Assert.Contains(deduped, transaction => transaction.Id == 11);
+    }
+
+    [Fact]
+    public void TryGetNextCursorStart_LatestDateAdvancesCursor_ReturnsTrue()
+    {
+        // Arrange
+        var currentStart = new DateTime(2026, 01, 01);
+        var latestDate = new DateTime(2026, 01, 01);
+
+        // Act
+        var canAdvance = OrganizzeSyncService.TryGetNextCursorStart(currentStart, latestDate, out var nextStart);
+
+        // Assert
+        Assert.True(canAdvance);
+        Assert.Equal(new DateTime(2026, 01, 02), nextStart);
+    }
+
+    [Fact]
+    public void TryGetNextCursorStart_LatestDateDoesNotAdvanceCursor_ReturnsFalse()
+    {
+        // Arrange
+        var currentStart = new DateTime(2026, 01, 02);
+        var latestDate = new DateTime(2026, 01, 01);
+
+        // Act
+        var canAdvance = OrganizzeSyncService.TryGetNextCursorStart(currentStart, latestDate, out var nextStart);
+
+        // Assert
+        Assert.False(canAdvance);
+        Assert.Equal(default, nextStart);
+    }
+
+    [Fact]
+    public void TryGetNextCursorStart_LatestDateIsNull_ReturnsFalse()
+    {
+        // Arrange
+        var currentStart = new DateTime(2026, 01, 02);
+
+        // Act
+        var canAdvance = OrganizzeSyncService.TryGetNextCursorStart(currentStart, latestDate: null, out var nextStart);
+
+        // Assert
+        Assert.False(canAdvance);
+        Assert.Equal(default, nextStart);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_OnlyCreditCardInvoiceIdIsZero_ReturnsFalse()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            CreditCardInvoiceId = 0,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.False(found);
+        Assert.Equal(default, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
+    public void TryGetExternalInvoiceId_PaidCreditCardInvoiceIdHasPriorityOverCreditCardInvoiceId()
+    {
+        // Arrange
+        var remoteTransaction = new OrganizzeTransaction
+        {
+            PaidCreditCardInvoiceId = 1001,
+            CreditCardInvoiceId = 2002,
+        };
+
+        // Act
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+
+        // Assert
+        Assert.True(found);
+        Assert.Equal(1001, resolvedExternalInvoiceId);
+    }
+
+    [Fact]
     public void AssignCategoryParentsFromRemote_ChildReferencesParent_SetsParentIdToLocalParent()
     {
         // Arrange

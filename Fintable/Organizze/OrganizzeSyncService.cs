@@ -2,35 +2,73 @@ using Fintable.Features.Sync;
 using Fintable.Models;
 using Fintable.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fintable.Organizze;
 
 public class OrganizzeSyncService
 {
-    private readonly FintableDb _db;
-    private readonly NOrganizze.NOrganizzeClient _client;
-    private readonly SyncWindowOptions _windowOptions;
+    internal const int TransactionFetchCap = 500;
 
-    public OrganizzeSyncService(FintableDb db, NOrganizze.NOrganizzeClient client, SyncWindowOptions windowOptions)
+    private readonly FintableDb _db;
+    private readonly NOrganizze.NOrganizzeClient? _client;
+    private readonly SyncWindowOptions _windowOptions;
+    private readonly ILogger<OrganizzeSyncService> _logger;
+
+    public OrganizzeSyncService(
+        FintableDb db,
+        NOrganizze.NOrganizzeClient client,
+        SyncWindowOptions windowOptions,
+        ILogger<OrganizzeSyncService> logger)
     {
         _db = db;
         _client = client;
         _windowOptions = windowOptions;
+        _logger = logger;
     }
 
-    public async Task SyncAsync(Provider provider, CancellationToken cancellationToken = default)
+    // Testing seam: allows subclass-based tests without coupling to NOrganizze types at constructor boundary.
+    protected OrganizzeSyncService(
+        FintableDb db,
+        SyncWindowOptions windowOptions,
+        ILogger<OrganizzeSyncService> logger)
     {
+        _db = db;
+        _windowOptions = windowOptions;
+        _logger = logger;
+    }
+
+    public async Task SyncAsync(
+        Provider provider,
+        SyncWarningCollector collector,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Starting Organizze sync for provider {ProviderId} ({ProviderName}).",
+            provider.Id,
+            provider.Name);
+
         // Order is important for relationship resolution.
         var accountsMap = await SyncAccountsAsync(provider, cancellationToken);
         var categoriesMap = await SyncCategoriesAsync(provider, cancellationToken);
         var creditCardsMap = await SyncCreditCardsAsync(provider, cancellationToken);
         var invoicesMap = await SyncInvoicesAsync(creditCardsMap, cancellationToken);
-        await SyncTransactionsAsync(accountsMap, categoriesMap, creditCardsMap, invoicesMap, cancellationToken);
+        await SyncTransactionsAsync(accountsMap, categoriesMap, creditCardsMap, invoicesMap, collector, cancellationToken);
+
+        _logger.LogInformation(
+            "Finished Organizze sync for provider {ProviderId} ({ProviderName}). Synced Accounts={AccountsCount}, Categories={CategoriesCount}, CreditCards={CreditCardsCount}, Invoices={InvoicesCount}.",
+            provider.Id,
+            provider.Name,
+            accountsMap.Count,
+            categoriesMap.Count,
+            creditCardsMap.Count,
+            invoicesMap.Count);
     }
 
     private async Task<Dictionary<string, string>> SyncAccountsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteAccounts = await _client.Accounts.ListAsync(cancellationToken: cancellationToken);
+        _logger.LogInformation("Syncing accounts for provider {ProviderId}...", provider.Id);
+        var remoteAccounts = await ListAccountsAsync(cancellationToken);
 
         var existing = await _db.Accounts
             .Where(a => a.ProviderId == provider.Id)
@@ -62,13 +100,19 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Accounts sync completed for provider {ProviderId}. Remote={RemoteCount}, LocalMapped={MappedCount}.",
+            provider.Id,
+            remoteAccounts.Count,
+            byExternalId.Count);
 
         return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
     }
 
     private async Task<Dictionary<string, string>> SyncCategoriesAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteCategories = await _client.Categories.ListAsync(cancellationToken: cancellationToken);
+        _logger.LogInformation("Syncing categories for provider {ProviderId}...", provider.Id);
+        var remoteCategories = await ListCategoriesAsync(cancellationToken);
 
         var existing = await _db.Categories
             .Where(c => c.ProviderId == provider.Id)
@@ -102,6 +146,11 @@ public class OrganizzeSyncService
         AssignCategoryParentsFromRemote(remoteCategories, byExternalId);
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Categories sync completed for provider {ProviderId}. Remote={RemoteCount}, LocalMapped={MappedCount}.",
+            provider.Id,
+            remoteCategories.Count,
+            byExternalId.Count);
 
         return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
     }
@@ -131,7 +180,8 @@ public class OrganizzeSyncService
 
     private async Task<Dictionary<string, string>> SyncCreditCardsAsync(Provider provider, CancellationToken cancellationToken)
     {
-        var remoteCards = await _client.CreditCards.ListAsync(cancellationToken: cancellationToken);
+        _logger.LogInformation("Syncing credit cards for provider {ProviderId}...", provider.Id);
+        var remoteCards = await ListCreditCardsAsync(cancellationToken);
 
         var existing = await _db.CreditCards
             .Where(c => c.ProviderId == provider.Id)
@@ -163,6 +213,11 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Credit cards sync completed for provider {ProviderId}. Remote={RemoteCount}, LocalMapped={MappedCount}.",
+            provider.Id,
+            remoteCards.Count,
+            byExternalId.Count);
 
         return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
     }
@@ -171,6 +226,9 @@ public class OrganizzeSyncService
         Dictionary<string, string> creditCardsMap,
         CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "Syncing invoices for {CreditCardsCount} credit card(s)...",
+            creditCardsMap.Count);
         var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
 
         var existing = await _db.Invoices
@@ -178,29 +236,50 @@ public class OrganizzeSyncService
             .ToListAsync(cancellationToken);
 
         var byExternalId = existing.ToDictionary(i => i.ExternalId, i => i);
+        var fetchedInvoicesCount = 0;
+        var creditCardIndex = 0;
 
         // Fetch invoices per credit card and per year to control request sizes.
         foreach (var creditCardExternalId in creditCardsMap.Keys)
         {
+            creditCardIndex++;
             if (!creditCardsMap.TryGetValue(creditCardExternalId, out var localCreditCardId))
             {
                 continue;
             }
 
             var creditCardRemoteId = long.Parse(creditCardExternalId);
+            _logger.LogInformation(
+                "Fetching invoices for credit card {CreditCardIndex}/{CreditCardsCount} (ExternalId={CreditCardExternalId}) across {YearRangeCount} range(s).",
+                creditCardIndex,
+                creditCardsMap.Count,
+                creditCardExternalId,
+                yearRanges.Count);
+
+            var yearRangeIndex = 0;
             foreach (var (start, end) in yearRanges)
             {
-                var remoteInvoices = await _client.Invoices.ListAsync(
+                yearRangeIndex++;
+                _logger.LogInformation(
+                    "Fetching invoices for card {CreditCardExternalId}, range {YearRangeIndex}/{YearRangeCount}: {StartDate:yyyy-MM-dd}..{EndDate:yyyy-MM-dd}.",
+                    creditCardExternalId,
+                    yearRangeIndex,
+                    yearRanges.Count,
+                    start,
+                    end);
+
+                var remoteInvoices = await ListInvoicesAsync(
                     creditCardRemoteId,
                     new NOrganizze.Invoices.InvoiceListOptions
                     {
                         StartDate = start,
                         EndDate = end,
                     },
-                    cancellationToken: cancellationToken);
+                    cancellationToken);
 
                 foreach (var remote in remoteInvoices)
                 {
+                    fetchedInvoicesCount++;
                     var externalId = remote.Id.ToString();
                     var date = remote.Date;
                     var amountCents = remote.AmountCents;
@@ -231,6 +310,12 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Invoices sync completed. RemoteFetched={RemoteFetchedCount}, LocalMapped={MappedCount}, CreditCards={CreditCardsCount}, YearRanges={YearRangeCount}.",
+            fetchedInvoicesCount,
+            byExternalId.Count,
+            creditCardsMap.Count,
+            yearRanges.Count);
 
         return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
     }
@@ -240,8 +325,15 @@ public class OrganizzeSyncService
         Dictionary<string, string> categoriesMap,
         Dictionary<string, string> creditCardsMap,
         Dictionary<string, string> invoicesMap,
+        SyncWarningCollector collector,
         CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "Syncing transactions with Accounts={AccountsCount}, Categories={CategoriesCount}, CreditCards={CreditCardsCount}, Invoices={InvoicesCount}.",
+            accountsMap.Count,
+            categoriesMap.Count,
+            creditCardsMap.Count,
+            invoicesMap.Count);
         var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
 
         var providerAccountIds = accountsMap.Values.ToHashSet();
@@ -257,33 +349,43 @@ public class OrganizzeSyncService
             .ToDictionaryAsync(c => c.Id, cancellationToken);
 
         var byExternalId = existing.ToDictionary(t => t.ExternalId, t => t);
+        var fetchedTransactionsCount = 0;
+        var skippedUnknownAccountCount = 0;
+        var yearRangeIndex = 0;
 
         foreach (var (start, end) in yearRanges)
         {
-            var remoteTransactions = await _client.Transactions.ListAsync(
-                new NOrganizze.Transactions.TransactionListOptions
-                {
-                    StartDate = start,
-                    EndDate = end,
-                },
-                cancellationToken: cancellationToken);
+            yearRangeIndex++;
+            _logger.LogInformation(
+                "Fetching transactions for range {YearRangeIndex}/{YearRangeCount}: {StartDate:yyyy-MM-dd}..{EndDate:yyyy-MM-dd}.",
+                yearRangeIndex,
+                yearRanges.Count,
+                start,
+                end);
+
+            var remoteTransactions = await FetchTransactionsByDateCursorAsync(start, end, collector, cancellationToken);
+            fetchedTransactionsCount += remoteTransactions.Count;
 
             foreach (var remote in remoteTransactions)
             {
                 var externalId = remote.Id.ToString();
                 var accountExternalId = remote.AccountId.ToString();
 
-                var accountType = Fintable.Models.TransactionAccountType.Account;
+                var accountType = TransactionAccountType.Account;
                 if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
                 {
                     if (creditCardsMap.TryGetValue(accountExternalId, out var localCreditCardId))
                     {
                         localAccountId = localCreditCardId;
-                        accountType = Fintable.Models.TransactionAccountType.CreditCard;
+                        accountType = TransactionAccountType.CreditCard;
                     }
                     else
                     {
                         // If we do not know the account, skip this transaction for now.
+                        skippedUnknownAccountCount++;
+                        collector.ReportWarning(
+                            SyncWarningCodes.TransactionUnknownAccountSkipped,
+                            $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} skipped because account {accountExternalId} is not mapped locally.");
                         continue;
                     }
                 }
@@ -292,7 +394,20 @@ public class OrganizzeSyncService
                 var localCategoryId = remoteCategoryKey is not null && categoriesMap.TryGetValue(remoteCategoryKey, out var mappedId)
                     ? mappedId
                     : null;
+                if (remoteCategoryKey is not null && localCategoryId is null)
+                {
+                    collector.ReportWarning(
+                        SyncWarningCodes.CategoryMappingMissing,
+                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references category {remoteCategoryKey} with no local mapping.");
+                }
+
                 var localInvoiceId = ResolveLocalInvoiceId(remote, invoicesMap);
+                if (TryGetExternalInvoiceId(remote, out var externalInvoiceId) && localInvoiceId is null)
+                {
+                    collector.ReportWarning(
+                        SyncWarningCodes.InvoiceMappingMissing,
+                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references invoice {externalInvoiceId} with no local mapping.");
+                }
                 ApplyCategoryKindInference(localCategoryId, remote.AmountCents, categoriesById);
 
                 if (byExternalId.TryGetValue(externalId, out var transaction))
@@ -335,6 +450,120 @@ public class OrganizzeSyncService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Transactions sync completed. RemoteFetched={RemoteFetchedCount}, LocalMapped={MappedCount}, SkippedUnknownAccount={SkippedUnknownAccountCount}, YearRanges={YearRangeCount}.",
+            fetchedTransactionsCount,
+            byExternalId.Count,
+            skippedUnknownAccountCount,
+            yearRanges.Count);
+
+        if (fetchedTransactionsCount > 0 && skippedUnknownAccountCount == fetchedTransactionsCount)
+        {
+            collector.ReportCritical(
+                SyncWarningCodes.SyncDataConsistencyRisk,
+                "All fetched transactions were skipped due to unmapped accounts. Local sync can be incomplete.");
+        }
+    }
+
+    internal async Task<List<NOrganizze.Transactions.Transaction>> FetchTransactionsByDateCursorAsync(
+        DateTime start,
+        DateTime end,
+        SyncWarningCollector collector,
+        CancellationToken cancellationToken)
+    {
+        var allFetched = new List<NOrganizze.Transactions.Transaction>();
+        var currentStart = start;
+
+        while (currentStart <= end)
+        {
+            var chunk = await ListTransactionsAsync(
+                new NOrganizze.Transactions.TransactionListOptions
+                {
+                    StartDate = currentStart,
+                    EndDate = end,
+                },
+                cancellationToken);
+
+            allFetched.AddRange(chunk);
+
+            if (chunk.Count < TransactionFetchCap)
+            {
+                break;
+            }
+
+            collector.ReportWarning(
+                SyncWarningCodes.TransactionFetchCapDetected,
+                $"Transaction fetch reached {chunk.Count} items for {currentStart:yyyy-MM-dd}..{end:yyyy-MM-dd}; continuing from latest fetched date.");
+
+            var latestDate = GetLatestTransactionDate(chunk);
+            if (!TryGetNextCursorStart(currentStart, latestDate, out var nextStart))
+            {
+                collector.ReportCritical(
+                    SyncWarningCodes.TransactionFetchCursorStalled,
+                    $"Transaction fetch cursor stalled at {currentStart:yyyy-MM-dd}..{end:yyyy-MM-dd}; unable to advance range safely.");
+                break;
+            }
+
+            currentStart = nextStart;
+        }
+
+        return DeduplicateTransactionsByExternalId(allFetched);
+    }
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Accounts.Account>> ListAccountsAsync(CancellationToken cancellationToken)
+        => await _client!.Accounts.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Categories.Category>> ListCategoriesAsync(CancellationToken cancellationToken)
+        => await _client!.Categories.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.CreditCards.CreditCard>> ListCreditCardsAsync(CancellationToken cancellationToken)
+        => await _client!.CreditCards.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Invoices.Invoice>> ListInvoicesAsync(
+        long creditCardId,
+        NOrganizze.Invoices.InvoiceListOptions options,
+        CancellationToken cancellationToken)
+        => await _client!.Invoices.ListAsync(creditCardId, options, cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Transactions.Transaction>> ListTransactionsAsync(
+        NOrganizze.Transactions.TransactionListOptions options,
+        CancellationToken cancellationToken)
+        => await _client!.Transactions.ListAsync(options, cancellationToken: cancellationToken);
+
+    internal static DateTime? GetLatestTransactionDate(IEnumerable<NOrganizze.Transactions.Transaction> transactions)
+    {
+        var dates = transactions.Select(transaction => transaction.Date).ToList();
+        return dates.Count == 0 ? null : dates.Max();
+    }
+
+    internal static List<NOrganizze.Transactions.Transaction> DeduplicateTransactionsByExternalId(
+        IEnumerable<NOrganizze.Transactions.Transaction> transactions)
+    {
+        var dedup = new Dictionary<long, NOrganizze.Transactions.Transaction>();
+        foreach (var transaction in transactions)
+        {
+            dedup[transaction.Id] = transaction;
+        }
+
+        return dedup.Values.ToList();
+    }
+
+    internal static bool TryGetNextCursorStart(DateTime currentStart, DateTime? latestDate, out DateTime nextStart)
+    {
+        if (latestDate is null)
+        {
+            nextStart = default;
+            return false;
+        }
+
+        nextStart = latestDate.Value.Date.AddDays(1);
+        if (nextStart <= currentStart.Date)
+        {
+            nextStart = default;
+            return false;
+        }
+
+        return true;
     }
 
     private static void ApplyCategoryKindInference(
@@ -384,16 +613,30 @@ public class OrganizzeSyncService
         NOrganizze.Transactions.Transaction remoteTransaction,
         IReadOnlyDictionary<string, string> invoicesMap)
     {
-        var externalInvoiceId = remoteTransaction.PaidCreditCardInvoiceId
-            ?? remoteTransaction.CreditCardInvoiceId;
-
-        if (externalInvoiceId is null || externalInvoiceId <= 0)
+        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId))
         {
             return null;
         }
 
-        return invoicesMap.TryGetValue(externalInvoiceId.Value.ToString(), out var localInvoiceId)
+        return invoicesMap.TryGetValue(externalInvoiceId.ToString(), out var localInvoiceId)
             ? localInvoiceId
             : null;
+    }
+
+    internal static bool TryGetExternalInvoiceId(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        out long externalInvoiceId)
+    {
+        var externalInvoiceIdNullable = remoteTransaction.PaidCreditCardInvoiceId
+            ?? remoteTransaction.CreditCardInvoiceId;
+
+        if (externalInvoiceIdNullable is null || externalInvoiceIdNullable <= 0)
+        {
+            externalInvoiceId = default;
+            return false;
+        }
+
+        externalInvoiceId = externalInvoiceIdNullable.Value;
+        return true;
     }
 }
