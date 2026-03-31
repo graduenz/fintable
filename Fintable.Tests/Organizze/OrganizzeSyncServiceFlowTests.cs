@@ -174,7 +174,7 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
         Assert.Equal(account.Id, transaction.AccountId);
         Assert.Equal(category.Id, transaction.CategoryId);
         Assert.Equal(invoice.Id, transaction.InvoiceId);
-        Assert.Empty(collector.WarningGroups);
+        Assert.Empty(collector.GetWarningGroups());
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
         await sut.SyncAsync(provider, collector, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.TransactionUnknownAccountSkipped);
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.SyncDataConsistencyRisk);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.TransactionUnknownAccountSkipped);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.SyncDataConsistencyRisk);
         Assert.Empty(await _db.Transactions.ToListAsync(TestContext.Current.CancellationToken));
     }
 
@@ -272,8 +272,8 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
         _db.ChangeTracker.Clear();
 
         // Assert
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.CategoryMappingMissing);
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.InvoiceMappingMissing);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.CategoryMappingMissing);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.InvoiceMappingMissing);
 
         var transaction = await _db.Transactions.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Null(transaction.CategoryId);
@@ -313,8 +313,8 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
 
         // Assert
         Assert.Equal(OrganizzeSyncService.TransactionFetchCap, transactions.Count);
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.TransactionFetchCapDetected);
-        Assert.Contains(collector.WarningGroups, group => group.Code == SyncWarningCodes.TransactionFetchCursorStalled);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.TransactionFetchCapDetected);
+        Assert.Contains(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.TransactionFetchCursorStalled);
         Assert.Equal(2, sut.TransactionOptionsHistory.Count);
         Assert.Equal(start, sut.TransactionOptionsHistory[0].StartDate);
         Assert.Equal(end, sut.TransactionOptionsHistory[0].EndDate);

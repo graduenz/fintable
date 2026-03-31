@@ -35,7 +35,7 @@ namespace Fintable.Features.Sync
             }
 
             logger.LogInformation("Finished sync for {ProviderCount} provider(s).", providers.Count);
-            result.WarningGroups = [.. collector.WarningGroups];
+            result.WarningGroups = [.. collector.GetWarningGroups()];
             return result;
         }
 
@@ -51,7 +51,7 @@ namespace Fintable.Features.Sync
             using var collector = new SyncWarningCollector(logger, $"provider sync ({provider.Id})");
             var result = new SyncExecutionResultDto();
             await SyncProviderAsync(provider, collector, result.SyncedProviders, cancellationToken);
-            result.WarningGroups = [.. collector.WarningGroups];
+            result.WarningGroups = [.. collector.GetWarningGroups()];
             return result;
         }
 
