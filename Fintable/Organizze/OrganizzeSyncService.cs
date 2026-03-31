@@ -11,7 +11,7 @@ public class OrganizzeSyncService
     internal const int TransactionFetchCap = 500;
 
     private readonly FintableDb _db;
-    private readonly NOrganizze.NOrganizzeClient _client;
+    private readonly NOrganizze.NOrganizzeClient? _client;
     private readonly SyncWindowOptions _windowOptions;
     private readonly ILogger<OrganizzeSyncService> _logger;
 
@@ -23,6 +23,17 @@ public class OrganizzeSyncService
     {
         _db = db;
         _client = client;
+        _windowOptions = windowOptions;
+        _logger = logger;
+    }
+
+    // Testing seam: allows subclass-based tests without coupling to NOrganizze types at constructor boundary.
+    protected OrganizzeSyncService(
+        FintableDb db,
+        SyncWindowOptions windowOptions,
+        ILogger<OrganizzeSyncService> logger)
+    {
+        _db = db;
         _windowOptions = windowOptions;
         _logger = logger;
     }
@@ -57,7 +68,7 @@ public class OrganizzeSyncService
     private async Task<Dictionary<string, string>> SyncAccountsAsync(Provider provider, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Syncing accounts for provider {ProviderId}...", provider.Id);
-        var remoteAccounts = await _client.Accounts.ListAsync(cancellationToken: cancellationToken);
+        var remoteAccounts = await ListAccountsAsync(cancellationToken);
 
         var existing = await _db.Accounts
             .Where(a => a.ProviderId == provider.Id)
@@ -101,7 +112,7 @@ public class OrganizzeSyncService
     private async Task<Dictionary<string, string>> SyncCategoriesAsync(Provider provider, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Syncing categories for provider {ProviderId}...", provider.Id);
-        var remoteCategories = await _client.Categories.ListAsync(cancellationToken: cancellationToken);
+        var remoteCategories = await ListCategoriesAsync(cancellationToken);
 
         var existing = await _db.Categories
             .Where(c => c.ProviderId == provider.Id)
@@ -170,7 +181,7 @@ public class OrganizzeSyncService
     private async Task<Dictionary<string, string>> SyncCreditCardsAsync(Provider provider, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Syncing credit cards for provider {ProviderId}...", provider.Id);
-        var remoteCards = await _client.CreditCards.ListAsync(cancellationToken: cancellationToken);
+        var remoteCards = await ListCreditCardsAsync(cancellationToken);
 
         var existing = await _db.CreditCards
             .Where(c => c.ProviderId == provider.Id)
@@ -257,14 +268,14 @@ public class OrganizzeSyncService
                     start,
                     end);
 
-                var remoteInvoices = await _client.Invoices.ListAsync(
+                var remoteInvoices = await ListInvoicesAsync(
                     creditCardRemoteId,
                     new NOrganizze.Invoices.InvoiceListOptions
                     {
                         StartDate = start,
                         EndDate = end,
                     },
-                    cancellationToken: cancellationToken);
+                    cancellationToken);
 
                 foreach (var remote in remoteInvoices)
                 {
@@ -465,13 +476,13 @@ public class OrganizzeSyncService
 
         while (currentStart <= end)
         {
-            var chunk = await _client.Transactions.ListAsync(
+            var chunk = await ListTransactionsAsync(
                 new NOrganizze.Transactions.TransactionListOptions
                 {
                     StartDate = currentStart,
                     EndDate = end,
                 },
-                cancellationToken: cancellationToken);
+                cancellationToken);
 
             allFetched.AddRange(chunk);
 
@@ -498,6 +509,26 @@ public class OrganizzeSyncService
 
         return DeduplicateTransactionsByExternalId(allFetched);
     }
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Accounts.Account>> ListAccountsAsync(CancellationToken cancellationToken)
+        => await _client!.Accounts.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Categories.Category>> ListCategoriesAsync(CancellationToken cancellationToken)
+        => await _client!.Categories.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.CreditCards.CreditCard>> ListCreditCardsAsync(CancellationToken cancellationToken)
+        => await _client!.CreditCards.ListAsync(cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Invoices.Invoice>> ListInvoicesAsync(
+        long creditCardId,
+        NOrganizze.Invoices.InvoiceListOptions options,
+        CancellationToken cancellationToken)
+        => await _client!.Invoices.ListAsync(creditCardId, options, cancellationToken: cancellationToken);
+
+    protected virtual async Task<IReadOnlyList<NOrganizze.Transactions.Transaction>> ListTransactionsAsync(
+        NOrganizze.Transactions.TransactionListOptions options,
+        CancellationToken cancellationToken)
+        => await _client!.Transactions.ListAsync(options, cancellationToken: cancellationToken);
 
     internal static DateTime? GetLatestTransactionDate(IEnumerable<NOrganizze.Transactions.Transaction> transactions)
     {
