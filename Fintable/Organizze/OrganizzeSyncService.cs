@@ -156,7 +156,7 @@ public class OrganizzeSyncService
 
     internal static void AssignCategoryParentsFromRemote(
         IEnumerable<NOrganizze.Categories.Category> remoteCategories,
-        IDictionary<string, Category> byExternalId)
+        Dictionary<string, Category> byExternalId)
     {
         foreach (var remote in remoteCategories)
         {
@@ -481,7 +481,7 @@ public class OrganizzeSyncService
     }
 
     private void UpsertTransaction(
-        IDictionary<string, Transaction> byExternalId,
+        Dictionary<string, Transaction> byExternalId,
         NOrganizze.Transactions.Transaction remoteTransaction,
         string externalId,
         string localAccountId,
