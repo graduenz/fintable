@@ -2,7 +2,6 @@ using Fintable.Features.Sync;
 using Fintable.Models;
 using Fintable.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Fintable.Organizze;
 
@@ -413,8 +412,8 @@ public class OrganizzeSyncService
 
     private static bool TryResolveLocalAccount(
         NOrganizze.Transactions.Transaction remoteTransaction,
-        IReadOnlyDictionary<string, string> accountsMap,
-        IReadOnlyDictionary<string, string> creditCardsMap,
+        Dictionary<string, string> accountsMap,
+        Dictionary<string, string> creditCardsMap,
         SyncWarningCollector collector,
         out string localAccountId,
         out TransactionAccountType accountType)
@@ -444,7 +443,7 @@ public class OrganizzeSyncService
 
     private static string? ResolveLocalCategoryIdAndReportMissing(
         NOrganizze.Transactions.Transaction remoteTransaction,
-        IReadOnlyDictionary<string, string> categoriesMap,
+        Dictionary<string, string> categoriesMap,
         SyncWarningCollector collector)
     {
         if (remoteTransaction.CategoryId <= 0)
@@ -466,7 +465,7 @@ public class OrganizzeSyncService
 
     private static string? ResolveLocalInvoiceIdAndReportMissing(
         NOrganizze.Transactions.Transaction remoteTransaction,
-        IReadOnlyDictionary<string, string> invoicesMap,
+        Dictionary<string, string> invoicesMap,
         SyncWarningCollector collector)
     {
         var localInvoiceId = ResolveLocalInvoiceId(remoteTransaction, invoicesMap);
@@ -688,7 +687,7 @@ public class OrganizzeSyncService
 
     internal static string? ResolveLocalInvoiceId(
         NOrganizze.Transactions.Transaction remoteTransaction,
-        IReadOnlyDictionary<string, string> invoicesMap)
+        Dictionary<string, string> invoicesMap)
     {
         if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId))
         {

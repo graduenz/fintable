@@ -22,6 +22,7 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - No repository pattern; operations on top of `FintableDb` are the way to go.
 - DTOs should be received/returned by the APIs, and not the EF entity itself (such as `ProviderDto`).
 - DTOs should include concise `ToString()` overrides for easier debugging and readable logs.
+- Prefer `Dictionary<,>` over `IReadOnlyDictionary<,>` to avoid code smells and increase performance.
 
 ## Database
 - The database driver is SQLite for simplicity.

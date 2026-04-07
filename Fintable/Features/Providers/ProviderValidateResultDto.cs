@@ -4,7 +4,7 @@ public class ProviderValidateResultDto
 {
     public required IReadOnlyList<string> RequiredKeys { get; set; }
     public bool IsFullySetUp { get; set; }
-    public required IReadOnlyDictionary<string, ProviderValidateEntryDto> Providers { get; set; }
+    public required Dictionary<string, ProviderValidateEntryDto> Providers { get; set; }
 
     public override string ToString()
     {
