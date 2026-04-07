@@ -2,6 +2,13 @@
 
 Fintable is a lightweight .NET service that syncs personal finance data from one or more sources, normalizes and stores it locally, and exposes a simple REST API for querying and reporting.
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=bugs)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=coverage)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=graduenz_fintable&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=graduenz_fintable)
+
 > [!NOTE]
 > This project is in active development. Features and APIs may change.
 
