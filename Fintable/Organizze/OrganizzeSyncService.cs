@@ -369,83 +369,29 @@ public class OrganizzeSyncService
             foreach (var remote in remoteTransactions)
             {
                 var externalId = remote.Id.ToString();
-                var accountExternalId = remote.AccountId.ToString();
-
-                var accountType = TransactionAccountType.Account;
-                if (!accountsMap.TryGetValue(accountExternalId, out var localAccountId))
+                if (!TryResolveLocalAccount(
+                        remote,
+                        accountsMap,
+                        creditCardsMap,
+                        collector,
+                        out var localAccountId,
+                        out var accountType))
                 {
-                    if (creditCardsMap.TryGetValue(accountExternalId, out var localCreditCardId))
-                    {
-                        localAccountId = localCreditCardId;
-                        accountType = TransactionAccountType.CreditCard;
-                    }
-                    else
-                    {
-                        // If we do not know the account, skip this transaction for now.
-                        skippedUnknownAccountCount++;
-                        collector.ReportWarning(
-                            SyncWarningCodes.TransactionUnknownAccountSkipped,
-                            $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} skipped because account {accountExternalId} is not mapped locally.");
-                        continue;
-                    }
-                }
-
-                var remoteCategoryKey = remote.CategoryId > 0 ? remote.CategoryId.ToString() : null;
-                var localCategoryId = remoteCategoryKey is not null && categoriesMap.TryGetValue(remoteCategoryKey, out var mappedId)
-                    ? mappedId
-                    : null;
-                if (remoteCategoryKey is not null && localCategoryId is null)
-                {
-                    collector.ReportWarning(
-                        SyncWarningCodes.CategoryMappingMissing,
-                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references category {remoteCategoryKey} with no local mapping.");
-                }
-
-                var localInvoiceId = ResolveLocalInvoiceId(remote, invoicesMap);
-                if (TryGetExternalInvoiceId(remote, out var externalInvoiceId) && localInvoiceId is null)
-                {
-                    collector.ReportWarning(
-                        SyncWarningCodes.InvoiceMappingMissing,
-                        $"Transaction \"{remote.Description}\" ({externalId}) on {remote.Date:yyyy-MM-dd} references invoice {externalInvoiceId} with no local mapping.");
-                }
-                ApplyCategoryKindInference(localCategoryId, remote.AmountCents, categoriesById);
-
-                if (byExternalId.TryGetValue(externalId, out var transaction))
-                {
-                    transaction.Description = remote.Description;
-                    transaction.Date = remote.Date;
-                    transaction.Paid = remote.Paid;
-                    transaction.Value = remote.AmountCents;
-                    transaction.TotalInstallments = remote.TotalInstallments;
-                    transaction.Installment = remote.Installment;
-                    transaction.Recurring = remote.Recurring;
-                    transaction.AccountId = localAccountId;
-                    transaction.AccountType = accountType;
-                    transaction.CategoryId = localCategoryId;
-                    transaction.InvoiceId = localInvoiceId;
-
+                    skippedUnknownAccountCount++;
                     continue;
                 }
 
-                var newTransaction = new Transaction
-                {
-                    Id = Id.New(),
-                    ExternalId = externalId,
-                    Description = remote.Description,
-                    Date = remote.Date,
-                    Paid = remote.Paid,
-                    Value = remote.AmountCents,
-                    TotalInstallments = remote.TotalInstallments,
-                    Installment = remote.Installment,
-                    Recurring = remote.Recurring,
-                    AccountId = localAccountId,
-                    AccountType = accountType,
-                    CategoryId = localCategoryId,
-                    InvoiceId = localInvoiceId,
-                };
-
-                _db.Transactions.Add(newTransaction);
-                byExternalId[externalId] = newTransaction;
+                var localCategoryId = ResolveLocalCategoryIdAndReportMissing(remote, categoriesMap, collector);
+                var localInvoiceId = ResolveLocalInvoiceIdAndReportMissing(remote, invoicesMap, collector);
+                ApplyCategoryKindInference(localCategoryId, remote.AmountCents, categoriesById);
+                UpsertTransaction(
+                    byExternalId,
+                    remote,
+                    externalId,
+                    localAccountId,
+                    accountType,
+                    localCategoryId,
+                    localInvoiceId);
             }
         }
 
@@ -463,6 +409,137 @@ public class OrganizzeSyncService
                 SyncWarningCodes.SyncDataConsistencyRisk,
                 "All fetched transactions were skipped due to unmapped accounts. Local sync can be incomplete.");
         }
+    }
+
+    private static bool TryResolveLocalAccount(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        IReadOnlyDictionary<string, string> accountsMap,
+        IReadOnlyDictionary<string, string> creditCardsMap,
+        SyncWarningCollector collector,
+        out string localAccountId,
+        out TransactionAccountType accountType)
+    {
+        var externalId = remoteTransaction.AccountId.ToString();
+        if (accountsMap.TryGetValue(externalId, out var mappedAccountId) && mappedAccountId is not null)
+        {
+            localAccountId = mappedAccountId;
+            accountType = TransactionAccountType.Account;
+            return true;
+        }
+
+        if (creditCardsMap.TryGetValue(externalId, out var mappedCreditCardId) && mappedCreditCardId is not null)
+        {
+            localAccountId = mappedCreditCardId;
+            accountType = TransactionAccountType.CreditCard;
+            return true;
+        }
+
+        collector.ReportWarning(
+            SyncWarningCodes.TransactionUnknownAccountSkipped,
+            $"Transaction \"{remoteTransaction.Description}\" ({remoteTransaction.Id}) on {remoteTransaction.Date:yyyy-MM-dd} skipped because account {externalId} is not mapped locally.");
+        localAccountId = string.Empty;
+        accountType = default;
+        return false;
+    }
+
+    private static string? ResolveLocalCategoryIdAndReportMissing(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        IReadOnlyDictionary<string, string> categoriesMap,
+        SyncWarningCollector collector)
+    {
+        if (remoteTransaction.CategoryId <= 0)
+        {
+            return null;
+        }
+
+        var externalCategoryId = remoteTransaction.CategoryId.ToString();
+        if (categoriesMap.TryGetValue(externalCategoryId, out var localCategoryId))
+        {
+            return localCategoryId;
+        }
+
+        collector.ReportWarning(
+            SyncWarningCodes.CategoryMappingMissing,
+            $"Transaction \"{remoteTransaction.Description}\" ({remoteTransaction.Id}) on {remoteTransaction.Date:yyyy-MM-dd} references category {externalCategoryId} with no local mapping.");
+        return null;
+    }
+
+    private static string? ResolveLocalInvoiceIdAndReportMissing(
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        IReadOnlyDictionary<string, string> invoicesMap,
+        SyncWarningCollector collector)
+    {
+        var localInvoiceId = ResolveLocalInvoiceId(remoteTransaction, invoicesMap);
+        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId) || localInvoiceId is not null)
+        {
+            return localInvoiceId;
+        }
+
+        collector.ReportWarning(
+            SyncWarningCodes.InvoiceMappingMissing,
+            $"Transaction \"{remoteTransaction.Description}\" ({remoteTransaction.Id}) on {remoteTransaction.Date:yyyy-MM-dd} references invoice {externalInvoiceId} with no local mapping.");
+        return null;
+    }
+
+    private void UpsertTransaction(
+        IDictionary<string, Transaction> byExternalId,
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        string externalId,
+        string localAccountId,
+        TransactionAccountType accountType,
+        string? localCategoryId,
+        string? localInvoiceId)
+    {
+        if (byExternalId.TryGetValue(externalId, out var transaction))
+        {
+            ApplyRemoteTransactionToEntity(
+                transaction,
+                remoteTransaction,
+                localAccountId,
+                accountType,
+                localCategoryId,
+                localInvoiceId);
+            return;
+        }
+
+        var newTransaction = new Transaction
+        {
+            Id = Id.New(),
+            ExternalId = externalId,
+            Description = remoteTransaction.Description,
+            AccountId = localAccountId,
+        };
+        ApplyRemoteTransactionToEntity(
+            newTransaction,
+            remoteTransaction,
+            localAccountId,
+            accountType,
+            localCategoryId,
+            localInvoiceId);
+
+        _db.Transactions.Add(newTransaction);
+        byExternalId[externalId] = newTransaction;
+    }
+
+    private static void ApplyRemoteTransactionToEntity(
+        Transaction transaction,
+        NOrganizze.Transactions.Transaction remoteTransaction,
+        string localAccountId,
+        TransactionAccountType accountType,
+        string? localCategoryId,
+        string? localInvoiceId)
+    {
+        transaction.Description = remoteTransaction.Description;
+        transaction.Date = remoteTransaction.Date;
+        transaction.Paid = remoteTransaction.Paid;
+        transaction.Value = remoteTransaction.AmountCents;
+        transaction.TotalInstallments = remoteTransaction.TotalInstallments;
+        transaction.Installment = remoteTransaction.Installment;
+        transaction.Recurring = remoteTransaction.Recurring;
+        transaction.AccountId = localAccountId;
+        transaction.AccountType = accountType;
+        transaction.CategoryId = localCategoryId;
+        transaction.InvoiceId = localInvoiceId;
     }
 
     internal async Task<List<NOrganizze.Transactions.Transaction>> FetchTransactionsByDateCursorAsync(
@@ -569,7 +646,7 @@ public class OrganizzeSyncService
     private static void ApplyCategoryKindInference(
         string? localCategoryId,
         int amountCents,
-        IReadOnlyDictionary<string, Category> categoriesById)
+        Dictionary<string, Category> categoriesById)
     {
         if (localCategoryId is null || !categoriesById.TryGetValue(localCategoryId, out var category))
         {

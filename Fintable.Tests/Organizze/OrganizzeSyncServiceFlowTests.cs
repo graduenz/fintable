@@ -281,6 +281,58 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAsync_TransactionAccountMatchesCreditCard_AssignsCreditCardAccountType()
+    {
+        // Arrange
+        var provider = new Provider
+        {
+            Id = Id.New(),
+            Type = ProviderType.Organizze,
+            Name = _faker.Company.CompanyName(),
+        };
+        _db.Providers.Add(provider);
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var sut = new TestableOrganizzeSyncService(
+            _db,
+            new SyncWindowOptions { YearsBack = 0, YearsForward = 0 },
+            NullLogger<OrganizzeSyncService>.Instance)
+        {
+            Accounts = [],
+            Categories = [],
+            CreditCards = [new OrganizzeCreditCard { Id = 30, Name = "Card account" }],
+            Invoices = [],
+            TransactionChunks =
+            [
+                [
+                    new OrganizzeTransaction
+                    {
+                        Id = 92,
+                        Description = _faker.Lorem.Sentence(),
+                        Date = DateTime.UtcNow,
+                        AccountId = 30,
+                        AmountCents = -2000,
+                        Paid = true,
+                    },
+                ],
+            ],
+        };
+
+        using var collector = new SyncWarningCollector(NullLogger.Instance, "test");
+
+        // Act
+        await sut.SyncAsync(provider, collector, TestContext.Current.CancellationToken);
+        _db.ChangeTracker.Clear();
+
+        // Assert
+        var creditCard = await _db.CreditCards.SingleAsync(c => c.ExternalId == "30", TestContext.Current.CancellationToken);
+        var transaction = await _db.Transactions.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(creditCard.Id, transaction.AccountId);
+        Assert.Equal(TransactionAccountType.CreditCard, transaction.AccountType);
+        Assert.DoesNotContain(collector.GetWarningGroups(), group => group.Code == SyncWarningCodes.TransactionUnknownAccountSkipped);
+    }
+
+    [Fact]
     public async Task FetchTransactionsByDateCursorAsync_WhenCapIsReachedAndCursorStalls_ReportsWarningAndCritical()
     {
         // Arrange
