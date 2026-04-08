@@ -1,0 +1,5 @@
+{
+  "database": "./Fintable/fintable.db",
+  "readonly": true,
+  "wal": true
+}
