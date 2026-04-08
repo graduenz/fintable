@@ -14,16 +14,19 @@ public class OrganizzeSyncServiceTests
     public void ResolveLocalInvoiceId_RemoteTransactionHasPaidCreditCardInvoiceId_ReturnsLocalInvoiceId()
     {
         // Arrange
-        var externalInvoiceId = _faker.Random.Int(1000, 9999).ToString();
+        var externalCreditCardId = _faker.Random.Long(100, 999);
+        var externalInvoiceId = _faker.Random.Long(1000, 9999);
         var localInvoiceId = Id.New();
+        var compositeKey = $"{externalCreditCardId}:{externalInvoiceId}";
         var invoicesMap = new Dictionary<string, string>
         {
-            [externalInvoiceId] = localInvoiceId,
+            [compositeKey] = localInvoiceId,
         };
 
         var remoteTransaction = new OrganizzeTransaction
         {
-            PaidCreditCardInvoiceId = long.Parse(externalInvoiceId),
+            PaidCreditCardId = externalCreditCardId,
+            PaidCreditCardInvoiceId = externalInvoiceId,
         };
 
         // Act
@@ -37,16 +40,19 @@ public class OrganizzeSyncServiceTests
     public void ResolveLocalInvoiceId_RemoteTransactionHasCreditCardInvoiceId_ReturnsLocalInvoiceId()
     {
         // Arrange
-        var externalInvoiceId = _faker.Random.Int(1000, 9999).ToString();
+        var externalCreditCardId = _faker.Random.Long(100, 999);
+        var externalInvoiceId = _faker.Random.Long(1000, 9999);
         var localInvoiceId = Id.New();
+        var compositeKey = $"{externalCreditCardId}:{externalInvoiceId}";
         var invoicesMap = new Dictionary<string, string>
         {
-            [externalInvoiceId] = localInvoiceId,
+            [compositeKey] = localInvoiceId,
         };
 
         var remoteTransaction = new OrganizzeTransaction
         {
-            CreditCardInvoiceId = long.Parse(externalInvoiceId),
+            CreditCardId = externalCreditCardId,
+            CreditCardInvoiceId = externalInvoiceId,
         };
 
         // Act
@@ -62,7 +68,7 @@ public class OrganizzeSyncServiceTests
         // Arrange
         var invoicesMap = new Dictionary<string, string>
         {
-            [_faker.Random.Int(1000, 9999).ToString()] = Id.New(),
+            [$"{_faker.Random.Long(100, 999)}:{_faker.Random.Long(1000, 9999)}"] = Id.New(),
         };
         var remoteTransaction = new OrganizzeTransaction();
 
@@ -77,15 +83,18 @@ public class OrganizzeSyncServiceTests
     public void ResolveLocalInvoiceId_RemoteTransactionHasUnmappedInvoiceId_ReturnsNull()
     {
         // Arrange
-        var mappedExternalInvoiceId = _faker.Random.Int(1000, 9999).ToString();
-        var unmappedExternalInvoiceId = _faker.Random.Int(10000, 19999).ToString();
+        var mappedCreditCardId = _faker.Random.Long(100, 999);
+        var mappedInvoiceId = _faker.Random.Long(1000, 9999);
+        var unmappedCreditCardId = _faker.Random.Long(2000, 2999);
+        var unmappedInvoiceId = _faker.Random.Long(10000, 19999);
         var invoicesMap = new Dictionary<string, string>
         {
-            [mappedExternalInvoiceId] = Id.New(),
+            [$"{mappedCreditCardId}:{mappedInvoiceId}"] = Id.New(),
         };
         var remoteTransaction = new OrganizzeTransaction
         {
-            PaidCreditCardInvoiceId = long.Parse(unmappedExternalInvoiceId),
+            PaidCreditCardId = unmappedCreditCardId,
+            PaidCreditCardInvoiceId = unmappedInvoiceId,
         };
 
         // Act
@@ -96,21 +105,25 @@ public class OrganizzeSyncServiceTests
     }
 
     [Fact]
-    public void TryGetExternalInvoiceId_RemoteTransactionHasInvoiceLink_ReturnsTrueAndExternalInvoiceId()
+    public void TryGetExternalInvoiceId_RemoteTransactionHasInvoiceLink_ReturnsTrueAndBothIds()
     {
         // Arrange
+        var externalCreditCardId = _faker.Random.Long(100, 999);
         var externalInvoiceId = _faker.Random.Long(1000, 9999);
         var remoteTransaction = new OrganizzeTransaction
         {
+            PaidCreditCardId = externalCreditCardId,
             PaidCreditCardInvoiceId = externalInvoiceId,
         };
 
         // Act
-        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(
+            remoteTransaction, out var resolvedCreditCardId, out var resolvedInvoiceId);
 
         // Assert
         Assert.True(found);
-        Assert.Equal(externalInvoiceId, resolvedExternalInvoiceId);
+        Assert.Equal(externalCreditCardId, resolvedCreditCardId);
+        Assert.Equal(externalInvoiceId, resolvedInvoiceId);
     }
 
     [Fact]
@@ -120,11 +133,13 @@ public class OrganizzeSyncServiceTests
         var remoteTransaction = new OrganizzeTransaction();
 
         // Act
-        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(
+            remoteTransaction, out var resolvedCreditCardId, out var resolvedInvoiceId);
 
         // Assert
         Assert.False(found);
-        Assert.Equal(default, resolvedExternalInvoiceId);
+        Assert.Equal(default, resolvedCreditCardId);
+        Assert.Equal(default, resolvedInvoiceId);
     }
 
     [Fact]
@@ -230,15 +245,18 @@ public class OrganizzeSyncServiceTests
         // Arrange
         var remoteTransaction = new OrganizzeTransaction
         {
+            CreditCardId = 5,
             CreditCardInvoiceId = 0,
         };
 
         // Act
-        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(
+            remoteTransaction, out var resolvedCreditCardId, out var resolvedInvoiceId);
 
         // Assert
         Assert.False(found);
-        Assert.Equal(default, resolvedExternalInvoiceId);
+        Assert.Equal(default, resolvedCreditCardId);
+        Assert.Equal(default, resolvedInvoiceId);
     }
 
     [Fact]
@@ -247,16 +265,20 @@ public class OrganizzeSyncServiceTests
         // Arrange
         var remoteTransaction = new OrganizzeTransaction
         {
+            PaidCreditCardId = 50,
             PaidCreditCardInvoiceId = 1001,
+            CreditCardId = 60,
             CreditCardInvoiceId = 2002,
         };
 
         // Act
-        var found = OrganizzeSyncService.TryGetExternalInvoiceId(remoteTransaction, out var resolvedExternalInvoiceId);
+        var found = OrganizzeSyncService.TryGetExternalInvoiceId(
+            remoteTransaction, out var resolvedCreditCardId, out var resolvedInvoiceId);
 
         // Assert
         Assert.True(found);
-        Assert.Equal(1001, resolvedExternalInvoiceId);
+        Assert.Equal(50, resolvedCreditCardId);
+        Assert.Equal(1001, resolvedInvoiceId);
     }
 
     [Fact]

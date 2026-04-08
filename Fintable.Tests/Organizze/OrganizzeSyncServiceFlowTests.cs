@@ -121,7 +121,7 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
             ],
             Invoices =
             [
-                new OrganizzeInvoice { Id = 40, Date = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), AmountCents = 2500, BalanceCents = 0 },
+                new OrganizzeInvoice { Id = 40, CreditCardId = 30, Date = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), AmountCents = 2500, BalanceCents = 0 },
             ],
             TransactionChunks =
             [
@@ -138,6 +138,7 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
                         Recurring = false,
                         AccountId = 10,
                         CategoryId = 20,
+                        CreditCardId = 30,
                         CreditCardInvoiceId = 40,
                     },
                 ],
@@ -257,6 +258,7 @@ public sealed class OrganizzeSyncServiceFlowTests : IDisposable
                         Date = DateTime.UtcNow,
                         AccountId = 10,
                         CategoryId = 777,
+                        CreditCardId = 999,
                         CreditCardInvoiceId = 888,
                         AmountCents = -1000,
                         Paid = true,

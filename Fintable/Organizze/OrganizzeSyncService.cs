@@ -230,23 +230,29 @@ public class OrganizzeSyncService
             creditCardsMap.Count);
         var yearRanges = SyncDateRangeCalculator.GetYearRanges(_windowOptions);
 
+        var localToExternalCardMap = creditCardsMap.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+
         var existing = await _db.Invoices
             .Where(i => creditCardsMap.Values.Contains(i.CreditCardId))
             .ToListAsync(cancellationToken);
 
-        var byExternalId = existing.ToDictionary(i => i.ExternalId, i => i);
+        // Composite key "{creditCardExternalId}:{invoiceExternalId}" prevents cross-card
+        // collisions when Organizze invoice IDs are scoped per credit card.
+        var byCompositeKey = new Dictionary<string, Invoice>();
+        foreach (var invoice in existing)
+        {
+            if (localToExternalCardMap.TryGetValue(invoice.CreditCardId, out var cardExternalId))
+            {
+                byCompositeKey[$"{cardExternalId}:{invoice.ExternalId}"] = invoice;
+            }
+        }
+
         var fetchedInvoicesCount = 0;
         var creditCardIndex = 0;
 
-        // Fetch invoices per credit card and per year to control request sizes.
         foreach (var creditCardExternalId in creditCardsMap.Keys)
         {
             creditCardIndex++;
-            if (!creditCardsMap.TryGetValue(creditCardExternalId, out var localCreditCardId))
-            {
-                continue;
-            }
-
             var creditCardRemoteId = long.Parse(creditCardExternalId);
             _logger.LogInformation(
                 "Fetching invoices for credit card {CreditCardIndex}/{CreditCardsCount} (ExternalId={CreditCardExternalId}) across {YearRangeCount} range(s).",
@@ -279,16 +285,28 @@ public class OrganizzeSyncService
                 foreach (var remote in remoteInvoices)
                 {
                     fetchedInvoicesCount++;
-                    var externalId = remote.Id.ToString();
+                    var invoiceExternalId = remote.Id.ToString();
+                    var cardExternalId = remote.CreditCardId > 0
+                        ? remote.CreditCardId.ToString()
+                        : creditCardExternalId;
+                    var compositeKey = $"{cardExternalId}:{invoiceExternalId}";
                     var date = remote.Date;
                     var amountCents = remote.AmountCents;
                     var paid = remote.BalanceCents == 0;
 
-                    if (byExternalId.TryGetValue(externalId, out var invoice))
+                    var localCreditCardId = creditCardsMap.GetValueOrDefault(cardExternalId)
+                        ?? creditCardsMap.GetValueOrDefault(creditCardExternalId);
+                    if (localCreditCardId is null)
+                    {
+                        continue;
+                    }
+
+                    if (byCompositeKey.TryGetValue(compositeKey, out var invoice))
                     {
                         invoice.Date = date;
                         invoice.Value = amountCents;
                         invoice.Paid = paid;
+                        invoice.CreditCardId = localCreditCardId;
                         continue;
                     }
 
@@ -296,14 +314,14 @@ public class OrganizzeSyncService
                     {
                         Id = Id.New(),
                         CreditCardId = localCreditCardId,
-                        ExternalId = externalId,
+                        ExternalId = invoiceExternalId,
                         Date = date,
                         Value = amountCents,
                         Paid = paid,
                     };
 
                     _db.Invoices.Add(newInvoice);
-                    byExternalId[externalId] = newInvoice;
+                    byCompositeKey[compositeKey] = newInvoice;
                 }
             }
         }
@@ -312,11 +330,11 @@ public class OrganizzeSyncService
         _logger.LogInformation(
             "Invoices sync completed. RemoteFetched={RemoteFetchedCount}, LocalMapped={MappedCount}, CreditCards={CreditCardsCount}, YearRanges={YearRangeCount}.",
             fetchedInvoicesCount,
-            byExternalId.Count,
+            byCompositeKey.Count,
             creditCardsMap.Count,
             yearRanges.Count);
 
-        return byExternalId.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
+        return byCompositeKey.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
     }
 
     private async Task SyncTransactionsAsync(
@@ -469,7 +487,7 @@ public class OrganizzeSyncService
         SyncWarningCollector collector)
     {
         var localInvoiceId = ResolveLocalInvoiceId(remoteTransaction, invoicesMap);
-        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId) || localInvoiceId is not null)
+        if (!TryGetExternalInvoiceId(remoteTransaction, out _, out var externalInvoiceId) || localInvoiceId is not null)
         {
             return localInvoiceId;
         }
@@ -689,30 +707,38 @@ public class OrganizzeSyncService
         NOrganizze.Transactions.Transaction remoteTransaction,
         Dictionary<string, string> invoicesMap)
     {
-        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalInvoiceId))
+        if (!TryGetExternalInvoiceId(remoteTransaction, out var externalCreditCardId, out var externalInvoiceId))
         {
             return null;
         }
 
-        return invoicesMap.TryGetValue(externalInvoiceId.ToString(), out var localInvoiceId)
+        var compositeKey = $"{externalCreditCardId}:{externalInvoiceId}";
+        return invoicesMap.TryGetValue(compositeKey, out var localInvoiceId)
             ? localInvoiceId
             : null;
     }
 
     internal static bool TryGetExternalInvoiceId(
         NOrganizze.Transactions.Transaction remoteTransaction,
+        out long externalCreditCardId,
         out long externalInvoiceId)
     {
-        var externalInvoiceIdNullable = remoteTransaction.PaidCreditCardInvoiceId
-            ?? remoteTransaction.CreditCardInvoiceId;
-
-        if (externalInvoiceIdNullable is null || externalInvoiceIdNullable <= 0)
+        if (remoteTransaction.PaidCreditCardInvoiceId is > 0 && remoteTransaction.PaidCreditCardId is > 0)
         {
-            externalInvoiceId = default;
-            return false;
+            externalCreditCardId = remoteTransaction.PaidCreditCardId.Value;
+            externalInvoiceId = remoteTransaction.PaidCreditCardInvoiceId.Value;
+            return true;
         }
 
-        externalInvoiceId = externalInvoiceIdNullable.Value;
-        return true;
+        if (remoteTransaction.CreditCardInvoiceId is > 0 && remoteTransaction.CreditCardId is > 0)
+        {
+            externalCreditCardId = remoteTransaction.CreditCardId.Value;
+            externalInvoiceId = remoteTransaction.CreditCardInvoiceId.Value;
+            return true;
+        }
+
+        externalCreditCardId = default;
+        externalInvoiceId = default;
+        return false;
     }
 }
