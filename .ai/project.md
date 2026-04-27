@@ -1,18 +1,15 @@
----
-description: Instructions and details about the Fintable project
-alwaysApply: true
----
-
-# Fintable
+# Fintable — Project Architecture & Rules
 
 Fintable is a lightweight .NET service that syncs personal finance data from one or more sources, normalizes and stores it locally, and exposes a simple REST API for querying and reporting.
 
 ## Architecture
+
 - The project intentionally favors simplicity and pragmatism.
-- Main concept: Providers → Sync Ochestrator → [... Sync Services → SQLite (EF Core)] → REST API (reports).
+- Main concept: Providers → Sync Orchestrator → [... Sync Services → SQLite (EF Core)] → REST API (reports).
 - No DDD layers (no Domain/Application/Infrastructure separation).
 
 ## Backend
+
 - Single .NET project for the application code.
 - Authentication: no authentication at all.
 - Dependency injection: .NET built-in dependency injection configured at `Program.cs`.
@@ -25,16 +22,18 @@ Fintable is a lightweight .NET service that syncs personal finance data from one
 - Prefer `Dictionary<,>` over `IReadOnlyDictionary<,>` and `IDictionary<,>` to avoid code smells and increase performance.
 
 ## Database
+
 - The database driver is SQLite for simplicity.
 - The database is not the source of truth, only a local projection/cache.
 - The actual finance data is fetched from different providers, such as Organizze.
 - If the DB is lost, the system can re-sync everything from the providers.
-- Database entities have a `string Id`, which is an `ULID` relying on the `Ulid` NuGet Package, that should be created using `Id.New()`.
-- Avoid unsupported EF translations in controller queries: 
+- Database entities have a `string Id`, which is a ULID relying on the `Ulid` NuGet package, that should be created using `Id.New()`.
+- Avoid unsupported EF translations in controller queries:
   - Do not use `string.Equals(..., StringComparison.OrdinalIgnoreCase)` inside `IQueryable` LINQ.
   - Use SQL-translatable alternatives (`ToLower()`/`ToUpper()` normalization) or evaluate in-memory after materialization.
 
 ## Providers
+
 - Providers implement sync services, such as `OrganizzeSyncService`, that ensures the data is up to date.
 - The Organizze provider leverages on the `NOrganizze` NuGet package. It's maintained by the same author of Fintable.
 - Providers return DTOs that are mapped to EF entities in the sync service.
@@ -47,14 +46,17 @@ In order to understand the NOrganizze documentation and types, you can use the f
 - https://github.com/graduenz/norganizze → contains the NOrganizze source code and documentation.
 - https://github.com/organizze/api-doc → contains the actual Organizze API documentation.
 
-You can even ask me to make changes in the NOrganizze project, since it's from the same author.
+You can even ask to make changes in the NOrganizze project, since it's from the same author.
 
-## Structure (under Fintable project)
-- `/Features` → vertical-sliced feature implementations.
-- `/Models` → general models for the application, that are not exclusively persistence models.
-- `/Persistence` → Entity Framework related artifacts, such as DB models and database context implementation.
-- `/Organizze` → artifacts to work with the Organizze provider.
+## Project Structure (under the Fintable project)
 
-## Breaking changes
+| Folder | Purpose |
+|---|---|
+| `/Features` | Vertical-sliced feature implementations |
+| `/Models` | General models for the application, not exclusively persistence models |
+| `/Persistence` | Entity Framework related artifacts: DB models and database context |
+| `/Organizze` | Artifacts to work with the Organizze provider |
 
-For every breaking change that doesn't impact an API surface, such as changing the database schema or a behavior, you don't need to worry about a migration plan or anything like that; instead, you can just ask me to delete the database and resync the data.
+## Breaking Changes
+
+For every breaking change that does not impact an API surface (e.g. changing the database schema or a behavior), there is no need for a migration plan. Simply delete the database and resync the data.
